@@ -142,8 +142,26 @@
             </section>
             <section class="technical">
                 <div class="caption"><span>02</span> VIEW & RENDERING</div>
-                <div class="map-info"><span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span><span
-                        id="position">—</span></div>
+                <div class="map-info">
+                    <span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span>
+                    <div class="probe-readout">
+                        <div class="probe-heading"><span id="probe-status">Hover · double-click to pin</span></div>
+                        <dl class="probe-values">
+                            <dt>Coordinates</dt><dd id="position">—</dd>
+                            <dt>Elevation</dt><dd id="cursor-elevation">—</dd>
+                        </dl>
+                    </div>
+                    <div class="probe-readout">
+                        <div class="probe-heading">
+                            <span>Pinned location</span>
+                            <button id="probe-unpin" type="button" hidden>Unpin</button>
+                        </div>
+                        <dl class="probe-values">
+                            <dt>Coordinates</dt><dd id="pinned-position">—</dd>
+                            <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
+                        </dl>
+                    </div>
+                </div>
                 <dl>
                     <dt>Presentation</dt>
                     <dd id="hdr">Initializing</dd>
@@ -167,6 +185,12 @@
             <div class="stage"><canvas id="map"
                     aria-label="Interactive elevation map. Drag to pan or rotate; scroll or pinch to zoom."
                     tabindex="0"></canvas>
+                <button id="fullscreen-exit" class="icon-button" type="button" aria-label="Exit fullscreen"
+                    title="Exit fullscreen" hidden>
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4"/>
+                    </svg>
+                </button>
                 <div id="message" role="status">Initializing WebGPU…</div>
             </div>
         </main>

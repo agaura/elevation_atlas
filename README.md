@@ -40,3 +40,7 @@ Visible terrain requests time out after 1 second and retry immediately. Other fa
 Zoom stops when one CSS pixel matches one texel of the finest global source level (512-pixel tiles at z18 give flat view zoom 19). The sphere uses the equivalent equatorial CSS radius, independent of region, latitude, and DPR; resizing recalculates its ceiling. Full device-pixel rendering is retained.
 
 Edge gradients use unclipped elevation differences, avoiding hard contour cutoffs at exposure bounds. Globe sampling uses an integer camera-relative tile origin and stable small-angle calculations to retain native texel precision at high zoom. GPU regressions check distinct adjacent samples and identical terrain shading across canvas resizes in both projections.
+
+The sidebar reports cursor coordinates and bilinearly sampled native elevation in both projections. Double-click the map to pin a geographic location; Unpin resumes hover tracking. Pinned locations stay fixed while panning and zooming, and elevation refreshes as finer tiles arrive. Fullscreen has a top-right exit button as well as Escape. CPU/GPU tile storage shares the 256 MiB cache budget.
+
+Hover and pinned locations have independent, labeled coordinate/elevation readouts with matching type sizes. Pinning leaves live hover enabled; both readout areas and their heading heights stay fixed to avoid layout shifts.

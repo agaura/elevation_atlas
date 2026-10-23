@@ -7,7 +7,7 @@
 /* Center icon geometry independently of padding, line boxes, and grid tracks. */
 .icon-button{display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:0}.icon-button svg{display:block;flex:0 0 18px}.lock-button svg{width:16px;height:16px;flex-basis:16px}.icon-button .collapse-icon{display:none}#fullscreen[aria-pressed=true] .expand-icon{display:none}#fullscreen[aria-pressed=true] .collapse-icon{display:block}
 #palette{margin-top:8px}.edge-toggle{margin:9px 0 0}.legend-wrap{position:relative;margin-top:8px}.legend-wrap #legend{margin-top:0}.ends{min-height:18px}.legend-hover{position:absolute;top:100%;left:0;width:100%;height:20px;pointer-events:none;font:9px monospace;color:var(--accent)}.legend-hover i{position:absolute;left:calc(var(--position)*1%);top:0;height:4px;border-left:1px solid currentColor}.legend-hover span{position:absolute;top:6px;width:90px;text-align:center;left:clamp(0px,calc(var(--position)*1% - 45px),calc(100% - 90px));white-space:nowrap}.legend-wrap:has(.legend-hover:not([hidden]))+.ends{visibility:hidden}
-/* App fullscreen is canvas-only; its only application exit is Escape. */
+/* Fullscreen keeps only the canvas, status, and exit control. */
 #map-panel:fullscreen,#map-panel.is-expanded{display:block;padding:0;gap:0;width:100vw;height:100dvh}#map-panel:fullscreen .map-heading,#map-panel:fullscreen .map-footer,#map-panel.is-expanded .map-heading,#map-panel.is-expanded .map-footer{display:none}#map-panel:fullscreen .stage,#map-panel.is-expanded .stage{position:absolute;inset:0;width:100%;height:100%;border:0}#map-panel:fullscreen #map,#map-panel.is-expanded #map{width:100%;height:100%}
 /* The viewport is entirely canvas; its context lives in the sidebar. */
 main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;overflow:hidden}main>.stage{position:absolute;inset:0;width:100%;height:100%;border:0}.header-right{display:flex;align-items:center;gap:24px}.header-right .map-actions{gap:14px}.map-info{display:grid;gap:5px;margin:0 0 12px;font:9px/1.4 monospace;color:var(--muted)}.map-help{display:grid;gap:7px;margin-top:12px;font:8px/1.5 monospace;color:var(--muted)}#message{position:static;max-width:none;padding:0;background:transparent;margin-top:9px;font:9px/1.5 monospace;color:var(--muted)}.slider-control.is-locked input[type=range]{opacity:.35;accent-color:#6e7c8c}body.canvas-fullscreen header,body.canvas-fullscreen aside{visibility:hidden}
@@ -18,3 +18,12 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 #message{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);margin:0;padding:7px 9px;background:#101318d9;color:var(--fg);pointer-events:none}
 
 .palette-picker{display:flex;align-items:center;gap:6px;margin-top:8px}.palette-picker #palette{flex:1;min-width:0;margin-top:0}.palette-picker .icon-button{flex:0 0 27px;width:27px;height:27px}.palette-picker .icon-button svg{width:18px;height:18px;flex:0 0 18px;stroke-width:1.5}.palette-picker .icon-button[aria-pressed=true]{background:#25303b;color:var(--fg)}
+
+#fullscreen-exit{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;background:#101318d9;border-color:var(--border);color:var(--fg)}
+#fullscreen-exit[hidden],#probe-unpin[hidden]{display:none}
+.probe-heading{height:18px;display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--muted);font:8px monospace}
+#probe-unpin{height:16px;line-height:12px;padding:0 4px;border:1px solid var(--border);background:transparent;color:var(--accent);font:9px monospace;cursor:pointer}
+#probe-unpin:focus-visible{outline:1px solid var(--accent)}
+.probe-values{grid-template-columns:auto minmax(0,1fr);column-gap:8px;row-gap:3px;margin:0;font:9px/1.4 monospace}
+.probe-values dd{font:inherit;text-align:right;overflow-wrap:anywhere}
+#cursor-elevation,#pinned-elevation{color:var(--accent);font:inherit}

@@ -1,3 +1,4 @@
+import {probePosition,sampleProbe} from './probe.js';
 import {SineTransition,ExposureTransition} from './exposure.js';
 import {sphereCamera,sphereTiles,zoomSphereAt,maximumSphereZoom} from './sphere.js';
 import {elevationAt,defaultHighlightWidth} from './highlight.js';
@@ -32,7 +33,7 @@ async function load(t,entry){
  if(entry.abort.signal.aborted)return;
  const {size,values,overzoomed}=decoded;
  const texture=device.createTexture({size:[size,size],format:'rg32float',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.COPY_SRC});device.queue.writeTexture({texture},values,{bytesPerRow:size*8},[size,size]);
- Object.assign(entry,{texture,size,overzoomed,state:'ready',bytes:values.byteLength});invalidateTerrain();
+ Object.assign(entry,{texture,size,values,overzoomed,state:'ready',bytes:values.byteLength*2});invalidateTerrain();
 }
 function pump(){while(active<8&&queue.length){
  const t=queue.shift(),entry=cache.get(t.key);if(!entry||entry.state!=='queued')continue;
@@ -58,7 +59,7 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  for(const t of requested){let entry=cache.get(t.key);if(!entry){entry={state:'queued',abort:new AbortController()};cache.set(t.key,entry);queue.push(t);}else if(entry.state==='queued'&&!queue.some(q=>q.key===t.key))queue.push(t);entry.used=performance.now();}
  // Bound CPU and GPU storage without discarding visible tiles.
  let bytes=[...cache.values()].reduce((sum,e)=>sum+(e.bytes||0),0);for(const [key,entry] of [...cache].sort((a,b)=>a[1].used-b[1].used)){if(bytes<256*1024*1024)break;if(!needed.has(key)){bytes-=(entry.bytes||0);entry.texture?.destroy();cache.delete(key);}}
- $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lon=wrap(view.x,1)*360-180,lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('position').textContent=`${Math.abs(lat).toFixed(3)}°${lat>=0?'N':'S'} ${Math.abs(lon).toFixed(3)}°${lon>=0?'E':'W'}`;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;history.replaceState(null,'',`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
+ $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;history.replaceState(null,'',`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
 function flatRenderTiles(){return tiles.flatMap(t=>{
  if(cache.get(t.key)?.state==='ready')return [t];
  for(let z=t.z-1;z>=0;z--){const factor=2**(t.z-z),x=Math.floor(t.x/factor),y=Math.floor(t.y/factor),sourceKey=`${z}/${wrap(x,2**z)}/${y}`;
@@ -75,7 +76,7 @@ function advanceExposure(time){
 }
 function retargetExposure(time){const moving=movingView(time);exposureTweens.min.retarget(exposureTargets.min,time,moving);exposureTweens.max.retarget(exposureTargets.max,time,moving);}
 function render(time=performance.now()){
- if(!renderer)return;const easing=advanceExposure(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);highlightLabel();
+ if(!renderer)return;const easing=advanceExposure(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);highlightLabel();updateProbe();
  const revision=exposureConfig;
  const started=renderer.render({tiles:globeCamera?tiles:flatRenderTiles(),cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:activeElevation(),highlightWidth:activeWidth(),emphasis:hovering||$('highlight').checked,edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,sphere:globeCamera,reduce:exposureDirty&&(! locks.min||! locks.max),onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
@@ -149,14 +150,22 @@ function syncNumbers(){for(const id of sliderIds){const range=$(id),number=$(id+
 for(const id of sliderIds){const range=$(id),number=$(id+'-number');number.addEventListener('input',()=>{if(number.value===''||!Number.isFinite(number.valueAsNumber))return;range.value=Math.min(Number(range.max),Math.max(Number(range.min),number.valueAsNumber));range.dispatchEvent(new Event('input'));});number.addEventListener('change',()=>{number.value=range.value;});}
 for(const button of document.querySelectorAll('[data-step-slider]'))button.addEventListener('click',()=>{const range=$(button.dataset.stepSlider),step=range.step==='any'?1:Number(range.step);range.value=Number(range.value)+Number(button.dataset.stepDir)*step;range.dispatchEvent(new Event('input'));});
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}
  fullscreenState();canvas.focus({preventScroll:true});
 });
 document.addEventListener('fullscreenchange',fullscreenState);
-window.addEventListener('keydown',async event=>{if(event.key!=='Escape')return;stopMomentum();stopNavigation();if(document.fullscreenElement===panel)await document.exitFullscreen().catch(()=>{});if(panel.classList.contains('is-expanded')){panel.classList.remove('is-expanded');fullscreenState();}});
+async function exitFullscreen(){
+ const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');
+ stopMomentum();stopNavigation();if(!active)return;
+ if(document.fullscreenElement===panel)await document.exitFullscreen().catch(()=>{});
+ if(panel.classList.contains('is-expanded')){panel.classList.remove('is-expanded');fullscreenState();}
+ canvas.focus({preventScroll:true});
+}
+$('fullscreen-exit').addEventListener('click',exitFullscreen);
+window.addEventListener('keydown',event=>{if(event.key==='Escape')exitFullscreen();});
 function isSphere(){return $('projection').checked;}
 $('projection').addEventListener('change',()=>{exposureConfig++;stopMomentum();$('projection-label').textContent=isSphere()?'GLOBAL ELEVATION / SPHERE':'GLOBAL ELEVATION / WEB MERCATOR';updateView();});
 function panBy(dx,dy){lastViewMotion=performance.now();
@@ -182,7 +191,7 @@ function startMomentum(){
 function snapshot(){const pts=[...pointers.values()];const center={x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length};return {...center,distance:pts.length>1?Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y):0};}
 canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;stopMomentum();stopNavigation();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture=snapshot();lastMove=performance.now();});
 canvas.addEventListener('pointermove',e=>{
- cursor={x:e.clientX,y:e.clientY,inside:true};
+ cursor={x:e.clientX,y:e.clientY,inside:true};requestProbeUpdate();
  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const next=snapshot(),s=256*2**view.zoom,now=performance.now(),dt=Math.max(1,now-lastMove),dx=next.x-gesture.x,dy=next.y-gesture.y;
  panBy(dx,dy);
  if(pointers.size===1){const mix=1-Math.exp(-dt/25);velocityX+=(Math.max(-2.5,Math.min(2.5,dx/dt))-velocityX)*mix;velocityY+=(Math.max(-2.5,Math.min(2.5,dy/dt))-velocityY)*mix;}else velocityX=velocityY=0;
@@ -192,7 +201,34 @@ for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.add
 window.addEventListener('blur',stopMomentum);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopMomentum();});
 let cursor={x:0,y:0,inside:false},navigationFrame=0,navigationTime=0,navX=0,navY=0,navZoom=0;
 const heldKeys=new Map(),tapUntil=new Map();
-canvas.addEventListener('pointerenter',event=>{cursor={x:event.clientX,y:event.clientY,inside:true};});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;});
+let pinnedProbe=null,probeFrame=0;
+function requestProbeUpdate(){if(!probeFrame)probeFrame=requestAnimationFrame(()=>{probeFrame=0;updateProbe();});}
+function cursorPoint(){
+ if(!cursor.inside)return null;
+ const rect=canvas.getBoundingClientRect(),x=cursor.x-rect.left,y=cursor.y-rect.top;
+ if(x<0||y<0||x>rect.width||y>rect.height)return null;
+ return probePosition(view,width,height,sphereZoom,x-width/2,y-height/2,isSphere());
+}
+function showProbe(point,positionId,elevationId){
+ const position=$(positionId),elevation=$(elevationId);
+ if(!point){position.textContent='—';elevation.textContent='—';return;}
+ const sample=sampleProbe(cache,point,Math.max(metadata?.land.maxzoom??18,metadata?.sea.maxzoom??18));
+ const lon=point.x*360-180,lat=Math.atan(Math.sinh(Math.PI*(1-2*point.y)))*180/Math.PI;
+ position.textContent=`${Math.abs(lat).toFixed(5)}°${lat>=0?'N':'S'} ${Math.abs(lon).toFixed(5)}°${lon>=0?'E':'W'}`;
+ elevation.textContent=sample?.elevation!=null?`${meters(sample.elevation)}${sample.water?' · water':''}`:sample?'No elevation data':'Loading elevation…';
+}
+function updateProbe(){
+ showProbe(cursorPoint(),'position','cursor-elevation');
+ showProbe(pinnedProbe,'pinned-position','pinned-elevation');
+ $('probe-unpin').hidden=!pinnedProbe;
+}
+canvas.addEventListener('dblclick',event=>{
+ stopMomentum();stopNavigation();cursor={x:event.clientX,y:event.clientY,inside:true};
+ const point=cursorPoint();if(point){pinnedProbe=point;requestProbeUpdate();}
+});
+$('probe-unpin').addEventListener('click',()=>{pinnedProbe=null;requestProbeUpdate();});
+
+canvas.addEventListener('pointerenter',event=>{cursor={x:event.clientX,y:event.clientY,inside:true};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
 const keyAction=code=>({ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',Equal:'in',NumpadAdd:'in',Minus:'out',NumpadSubtract:'out'})[code];
 function stopNavigation(){cancelAnimationFrame(navigationFrame);navigationFrame=0;heldKeys.clear();tapUntil.clear();navX=navY=navZoom=0;}
 function navigationTick(time){
