@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Elevation Atlas</title>
+<link rel="stylesheet" href="styles.css">
+
+<body>
+    <div class="app">
+        <header>
+            <script async src="https://www.googletagmanager.com/gtag/js?id=G-BBWS173BMQ"></script>
+            <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-BBWS173BMQ');
+            </script>
+            <div>
+                <div class="eyebrow">EARTH SYSTEMS / TERRAIN EXPLORER</div>
+                <h1>Elevation <span>Atlas</span></h1>
+            </div>
+            <div class="header-right">
+                <div class="map-actions"><label class="toggle projection-toggle"><span>Flat</span><input id="projection"
+                            type="checkbox" aria-label="Sphere view"><span>Sphere</span></label><button id="fullscreen"
+                        class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
+                        title="Enter fullscreen"><svg class="expand-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" />
+                        </svg><svg class="collapse-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4" />
+                        </svg></button></div>
+            </div>
+        </header>
+        <aside>
+            <section class="color-controls">
+                <div class="caption"><span>01</span> COLOR MAP</div><label class="toggle water-toggle">Water <input
+                        id="water" type="checkbox"></label>
+                <div class="slider-control">
+                    <div class="control-heading"><label for="min">Minimum elevation</label><span
+                            class="value-edit"><input id="min-number" aria-label="Minimum elevation value" type="number"
+                                step="any" value="-11000"><span class="unit">m</span><span class="steppers"><button
+                                    type="button" data-step-slider="min" data-step-dir="1"
+                                    aria-label="Increase minimum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="m4 10 4-4 4 4" />
+                                    </svg></button><button type="button" data-step-slider="min" data-step-dir="-1"
+                                    aria-label="Decrease minimum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="m4 6 4 4 4-4" />
+                                    </svg></button></span></span></div>
+                    <div class="slider-row has-lock"><input id="min" type="range" min="-12000" max="9000" step="any"
+                            value="-11000"><button id="min-lock" type="button" class="icon-button lock-button"
+                            aria-pressed="false" aria-label="Lock minimum elevation" title="Lock minimum elevation"><svg
+                                viewBox="0 0 20 20" aria-hidden="true">
+                                <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
+                                <path class="locked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5" />
+                                <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
+                                <path d="M10 12v2" />
+                            </svg></button></div>
+                </div><output id="min-value" hidden></output>
+                <div class="slider-control">
+                    <div class="control-heading"><label for="max">Maximum elevation</label><span
+                            class="value-edit"><input id="max-number" aria-label="Maximum elevation value" type="number"
+                                step="any" value="8850"><span class="unit">m</span><span class="steppers"><button
+                                    type="button" data-step-slider="max" data-step-dir="1"
+                                    aria-label="Increase maximum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="m4 10 4-4 4 4" />
+                                    </svg></button><button type="button" data-step-slider="max" data-step-dir="-1"
+                                    aria-label="Decrease maximum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="m4 6 4 4 4-4" />
+                                    </svg></button></span></span></div>
+                    <div class="slider-row has-lock"><input id="max" type="range" min="-12000" max="9000" step="any"
+                            value="8850"><button id="max-lock" type="button" class="icon-button lock-button"
+                            aria-pressed="false" aria-label="Lock maximum elevation" title="Lock maximum elevation"><svg
+                                viewBox="0 0 20 20" aria-hidden="true">
+                                <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
+                                <path class="locked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5" />
+                                <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
+                                <path d="M10 12v2" />
+                            </svg></button></div>
+                </div><output id="max-value" hidden></output>
+                <label for="palette" class="sr">Color map</label>
+                <div class="palette-picker"><select id="palette">
+                        <option value="0">Grayscale</option>
+                        <option value="1" selected>Thermal</option>
+                        <option value="2">Antarctica</option>
+                    </select><button id="palette-flip" class="icon-button" type="button" aria-label="Flip color map"
+                        title="Flip color map" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                                d="M20 10a8 8 0 0 0-13.66-3.66L3 9M3 4v5h5M4 14a8 8 0 0 0 13.66 3.66L21 15M21 20v-5h-5" />
+                        </svg></button></div>
+                <div class="legend-wrap"><canvas id="legend" tabindex="0" role="slider" aria-label="Elevation highlight"
+                        aria-valuemin="-11000" aria-valuemax="8850" aria-valuenow="-1075"></canvas>
+                    <div id="legend-hover" class="legend-hover" hidden><i></i><span id="legend-hover-value"></span>
+                    </div>
+                </div>
+                <div class="ends"><span id="legend-min"></span><span id="legend-max"></span></div>
+                <div class="highlight-heading"><label class="toggle">Highlight <input id="highlight"
+                            type="checkbox"></label><span id="highlight-value" aria-live="polite">— m</span></div>
+                <div id="highlight-band" class="note">Hover to preview · click to pin an elevation</div>
+                <fieldset id="highlight-controls" disabled>
+                    <legend class="sr">Highlight settings</legend>
+                    <div class="slider-control">
+                        <div class="control-heading"><label for="highlight-elevation">Elevation</label><span
+                                class="value-edit"><input id="highlight-elevation-number" aria-label="Elevation value"
+                                    type="number" step="any" value="-1075"><span class="unit">m</span><span
+                                    class="steppers"><button type="button" data-step-slider="highlight-elevation"
+                                        data-step-dir="1" aria-label="Increase elevation"><svg viewBox="0 0 16 16"
+                                            aria-hidden="true">
+                                            <path d="m4 10 4-4 4 4" />
+                                        </svg></button><button type="button" data-step-slider="highlight-elevation"
+                                        data-step-dir="-1" aria-label="Decrease elevation"><svg viewBox="0 0 16 16"
+                                            aria-hidden="true">
+                                            <path d="m4 6 4 4 4-4" />
+                                        </svg></button></span></span></div>
+                        <div class="slider-row"><input id="highlight-elevation" type="range" min="-12000" max="9000"
+                                step="any" value="-1075"></div>
+                    </div>
+                    <div class="slider-control">
+                        <div class="control-heading"><label for="highlight-width">Half-width</label><span
+                                class="value-edit"><span class="value-prefix">±</span><input id="highlight-width-number"
+                                    aria-label="Half-width value" type="number" step="any" value="2481.25"><span
+                                    class="unit">m</span><span class="steppers"><button type="button"
+                                        data-step-slider="highlight-width" data-step-dir="1"
+                                        aria-label="Increase half-width"><svg viewBox="0 0 16 16" aria-hidden="true">
+                                            <path d="m4 10 4-4 4 4" />
+                                        </svg></button><button type="button" data-step-slider="highlight-width"
+                                        data-step-dir="-1" aria-label="Decrease half-width"><svg viewBox="0 0 16 16"
+                                            aria-hidden="true">
+                                            <path d="m4 6 4 4 4-4" />
+                                        </svg></button></span></span></div>
+                        <div class="slider-row has-lock"><input id="highlight-width" type="range" min="1e-06"
+                                max="24000" step="any" value="2481.25"><button id="highlight-width-lock" type="button"
+                                class="icon-button lock-button" aria-pressed="false"
+                                aria-label="Lock highlight half-width" title="Lock highlight half-width"><svg
+                                    viewBox="0 0 20 20" aria-hidden="true">
+                                    <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
+                                    <path class="locked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5" />
+                                    <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
+                                    <path d="M10 12v2" />
+                                </svg></button></div>
+                    </div>
+                </fieldset><label class="toggle edge-toggle">Edge highlighting <input id="edges" type="checkbox"
+                        checked></label>
+            </section>
+            <section class="technical">
+                <div class="caption"><span>02</span> VIEW & RENDERING</div>
+                <div class="map-info"><span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span><span
+                        id="position">—</span></div>
+                <dl>
+                    <dt>Presentation</dt>
+                    <dd id="hdr">Initializing</dd>
+                    <dt>Device pixels</dt>
+                    <dd id="pixels">—</dd>
+                    <dt>Source level</dt>
+                    <dd id="level">—</dd>
+                    <dt>Tile coverage</dt>
+                    <dd id="coverage">—</dd>
+                </dl>
+                <div class="map-help"><span id="scale">—</span></div>
+            </section>
+            <footer>
+                <div class="eyebrow">DATA / ATTRIBUTION</div>
+                <p><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
+                        sources</a><br><a href="https://openwaters.io/charts/seascape#license" target="_blank"
+                        rel="noreferrer">Open Waters / Seascape sources</a></p>
+            </footer>
+        </aside>
+        <main id="map-panel">
+            <div class="stage"><canvas id="map"
+                    aria-label="Interactive elevation map. Drag to pan or rotate; scroll or pinch to zoom."
+                    tabindex="0"></canvas>
+                <div id="message" role="status">Initializing WebGPU…</div>
+            </div>
+        </main>
+    </div>
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
