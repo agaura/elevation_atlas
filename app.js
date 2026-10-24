@@ -1,3 +1,4 @@
+import {uploadTerrainTexture,LowPrecisionUpdates,byteTextureReady,selectByteUploads} from './precision.js';
 import {setupSearch,searchDestination} from './search.js';
 import {MapOverlay} from './map-overlay.js';
 import {probePosition,sampleProbe,projectProbe} from './probe.js';
@@ -12,17 +13,19 @@ const view={x:.5,y:.42,zoom:2};
 try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=Math.max(0,Math.min(1,saved[2]));}}catch{}
 let device,context,legendContext,renderer,format,toneMapping,colorSpace='display-p3',tiles=[],cache=new Map(),active=0,queue=[],frame=0,dpr=1,width=1,height=1,min=-11000,max=8850,metadata;
 let sphereZoom=0,globeCamera=null;
+const lowPrecisionUpdates=new LowPrecisionUpdates(min,max);let lowPrecisionWake=0;
+function wakeLowPrecision(delay=180){if(lowPrecisionWake)return;lowPrecisionWake=setTimeout(()=>{lowPrecisionWake=0;requestRender();},Math.max(16,delay));}
 const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 let pinnedElevation=null,previewElevation=null,hoverPosition=.5,highlightFraction=1/8,lockedHighlightWidth=null,hovering=false,exposureDirty=true,exposureConfig=0,lastViewMotion=-Infinity,viewDirty=false;
 const fallback={land:{tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18},sea:{tiles:['https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18,schema:1}};
 const mapOverlay=new MapOverlay(requestRender,message=>{$('map-status').textContent=message;});
 function requestRender(){if(!frame)frame=requestAnimationFrame(time=>{frame=0;if(viewDirty){viewDirty=false;updateViewNow();}render(time);});}
 function controls(){for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
-function report(){const ready=tiles.filter(t=>cache.get(t.key)?.state==='ready').length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':'';}
+function report(){const ready=tiles.filter(t=>$('high-precision').checked?cache.get(t.key)?.state==='ready':byteTextureReady(cache.get(t.key),lowPrecisionUpdates.min,lowPrecisionUpdates.max)).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':'';}
 const tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});
 let nextRequest=0;const pendingTiles=new Map();
 tileWorker.onmessage=({data})=>{const pending=pendingTiles.get(data.id);if(!pending)return;pendingTiles.delete(data.id);if(data.error)pending.reject(Error(data.error));else pending.resolve(data);};
-function invalidateTerrain(){exposureDirty=true;renderer?.invalidate();}
+function invalidateTerrain(){exposureDirty=true;renderer?.invalidate();if(!$('high-precision').checked){lowPrecisionUpdates.touch(performance.now());wakeLowPrecision();}}
 async function load(t,entry){
  const id=++nextRequest;
  const decoded=await new Promise((resolve,reject)=>{
@@ -34,9 +37,8 @@ async function load(t,entry){
   tileWorker.postMessage({id,t,metadata,retry:entry.attempts>0});
  });
  if(entry.abort.signal.aborted)return;
- const {size,values,overzoomed}=decoded;
- const texture=device.createTexture({size:[size,size],format:'rg32float',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.COPY_SRC});device.queue.writeTexture({texture},values,{bytesPerRow:size*8},[size,size]);
- Object.assign(entry,{texture,size,values,overzoomed,state:'ready',bytes:values.byteLength*2});invalidateTerrain();
+ const {size,values,overzoomed,exposureIndex}=decoded;
+ Object.assign(entry,{size,values,overzoomed,exposureIndex,state:'ready',bytes:values.byteLength+(exposureIndex?.bytes||0)});if($('high-precision').checked)uploadTerrainTexture(device,entry,true,min,max);invalidateTerrain();
 }
 function pump(){while(active<8&&queue.length){
  const t=queue.shift(),entry=cache.get(t.key);if(!entry||entry.state!=='queued')continue;
@@ -63,10 +65,10 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  // Bound CPU and GPU storage without discarding visible tiles.
  let bytes=[...cache.values()].reduce((sum,e)=>sum+(e.bytes||0),0);for(const [key,entry] of [...cache].sort((a,b)=>a[1].used-b[1].used)){if(bytes<256*1024*1024)break;if(!needed.has(key)){bytes-=(entry.bytes||0);entry.texture?.destroy();cache.delete(key);}}
  $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;history.replaceState(null,'',`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
-function flatRenderTiles(){return tiles.flatMap(t=>{
- if(cache.get(t.key)?.state==='ready')return [t];
+function flatRenderTiles(uploadedOnly=false){const ready=e=>uploadedOnly?byteTextureReady(e,lowPrecisionUpdates.min,lowPrecisionUpdates.max):e?.state==='ready';return tiles.flatMap(t=>{
+ if(ready(cache.get(t.key)))return [t];
  for(let z=t.z-1;z>=0;z--){const factor=2**(t.z-z),x=Math.floor(t.x/factor),y=Math.floor(t.y/factor),sourceKey=`${z}/${wrap(x,2**z)}/${y}`;
-  if(cache.get(sourceKey)?.state==='ready')return [{...t,sourceKey,uv:[wrap(t.x,factor)/factor,wrap(t.y,factor)/factor,1/factor]}];
+  if(ready(cache.get(sourceKey)))return [{...t,sourceKey,uv:[wrap(t.x,factor)/factor,wrap(t.y,factor)/factor,1/factor]}];
  }return [];
 });}
 function movingView(time){return pointers.size>0||momentumFrame!==0||navigationFrame!==0||time-lastViewMotion<100;}
@@ -81,15 +83,31 @@ function retargetExposure(time){const moving=movingView(time);exposureTweens.min
 function render(time=performance.now()){
  if(!renderer||!metadata)return;const easing=advanceExposure(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);highlightLabel();updateProbe();
  const mapMask=$('map-mode').checked?mapOverlay.draw({view,width,height,dpr,camera:globeCamera}):null;
- const revision=exposureConfig;
- const started=renderer.render({tiles:globeCamera?tiles:flatRenderTiles(),cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:activeElevation(),highlightWidth:activeWidth(),emphasis:hovering||$('highlight').checked,edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,sphere:globeCamera,mapOverlay:mapMask,reduce:exposureDirty&&(! locks.min||! locks.max),onExposure(lo,hi){
+ const revision=exposureConfig,highPrecision=$('high-precision').checked;let renderTiles=globeCamera?tiles:flatRenderTiles(),byteUploadsPending=false;
+ const pendingExposure=exposureDirty&&(!locks.min||!locks.max),quiet=highPrecision||lowPrecisionUpdates.ready(time,movingView(time));
+ if(!highPrecision){
+  const desiredMin=locks.min?min:exposureTargets.min,desiredMax=locks.max?max:exposureTargets.max;
+  lowPrecisionUpdates.commit(desiredMin,desiredMax,time,movingView(time),pendingExposure);
+  if(!quiet&&(pendingExposure||desiredMin!==lowPrecisionUpdates.min||desiredMax!==lowPrecisionUpdates.max))wakeLowPrecision(Math.max(50,lowPrecisionUpdates.deadline-time));
+ }
+ const encodingMin=highPrecision?min:lowPrecisionUpdates.min,encodingMax=highPrecision?max:lowPrecisionUpdates.max;
+ if(highPrecision){for(const t of renderTiles){const entry=cache.get(t.sourceKey??t.key);if(entry?.state==='ready')uploadTerrainTexture(device,entry,true,encodingMin,encodingMax);}}
+ else{
+  // Always stage the global preview first so deferred native tiles have coverage.
+  const staging=selectByteUploads([cache.get('0/0/0'),...renderTiles.map(t=>cache.get(t.sourceKey??t.key))],encodingMin,encodingMax,movingView(time)?2:4);
+  for(const entry of staging.selected)uploadTerrainTexture(device,entry,false,encodingMin,encodingMax);
+  if(staging.selected.length)renderer.invalidate();
+  byteUploadsPending=staging.pending;if(staging.pending)requestRender();if(!globeCamera)renderTiles=flatRenderTiles(true);report();
+ }
+ $('high-precision').title=highPrecision?'32-bit floating-point terrain':'8-bit terrain · '+((encodingMax-encodingMin)/255).toLocaleString(undefined,{maximumFractionDigits:3})+' m per step';
+ const started=renderer.render({tiles:renderTiles,highPrecision,encodingMin,encodingMax,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:activeElevation(),highlightWidth:activeWidth(),emphasis:hovering||$('highlight').checked,edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure&&quiet&&!byteUploadsPending,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    const minLocked=locks.min,maxLocked=locks.max;
    if(!minLocked&&!maxLocked){exposureTargets.min=lo;exposureTargets.max=Math.max(lo+1/256,hi);}
    else if(!minLocked)exposureTargets.min=Math.min(lo,max-1/256);
    else if(!maxLocked)exposureTargets.max=Math.max(min+1/256,hi);
-   retargetExposure(now);controls();requestRender();
+   if(highPrecision)retargetExposure(now);else{if(!locks.min)exposureTweens.min.start(min,exposureTargets.min,now);if(!locks.max)exposureTweens.max.start(max,exposureTargets.max,now);}controls();requestRender();
   }else if(exposureDirty)requestRender();
  }});
  if(started)exposureDirty=false;if(easing||edgeTransition.active(time))requestRender();
@@ -101,10 +119,16 @@ function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=
 for(const id of ['min','max']){
  $(id).addEventListener('input',()=>{
   if(id==='min'){min=Math.min(Number($('min').value),max-1);exposureTargets.max=Math.max(exposureTargets.max,min+1/256);}else{max=Math.max(Number($('max').value),min+1);exposureTargets.min=Math.min(exposureTargets.min,max-1/256);}
+  if(!$('high-precision').checked){lowPrecisionUpdates.touch(performance.now());wakeLowPrecision();}
   setLocked(id,true);const other=id==='min'?'max':'min';if(exposureTweens[other].target!==exposureTargets[other])exposureTweens[other].start(other==='min'?min:max,exposureTargets[other],performance.now());controls();requestRender();
  });
- $(id+'-lock').addEventListener('click',()=>{setLocked(id,!locks[id]);exposureDirty=true;controls();requestRender();});
+ $(id+'-lock').addEventListener('click',()=>{setLocked(id,!locks[id]);exposureDirty=true;if(!$('high-precision').checked){lowPrecisionUpdates.touch(performance.now());wakeLowPrecision();}controls();requestRender();});
 }
+$('high-precision').addEventListener('change',()=>{
+ clearTimeout(lowPrecisionWake);lowPrecisionWake=0;lowPrecisionUpdates.reset(min,max,performance.now());
+ exposureConfig++;for(const entry of cache.values())if(entry.state==='ready'){entry.texture?.destroy();delete entry.texture;delete entry.quantized;entry.bytes=entry.values.byteLength+(entry.exposureIndex?.bytes||0);}
+ invalidateTerrain();requestRender();
+});
 $('water').addEventListener('change',()=>{exposureConfig++;invalidateTerrain();requestRender();});
 $('edges').addEventListener('change',()=>{edgeTransition.retarget($('edges').checked?1:0,performance.now());requestRender();});
 const meters=value=>value.toLocaleString(undefined,{maximumFractionDigits:3})+' m';
