@@ -66,20 +66,34 @@ fn packHeight(value:vec2f)->vec2f{
 }`;
 export async function createSpherePass(device,{highPrecision=true}={}){
  const format=highPrecision?'rg32float':'rg8unorm';
- const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float',viewDimension:'2d-array'}},{binding:1,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});
- const module=device.createShaderModule({code:highPrecision?shader:shader8});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));
+ const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float',viewDimension:'2d-array'}},{binding:1,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},...Array.from({length:7},(_,i)=>({binding:i+3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float',viewDimension:'2d-array'}}))]});
+ const pageCount=8;
+ let code=highPrecision?shader:shader8;
+ code=code.replace('@group(0) @binding(0) var atlas:texture_2d_array<f32>;',Array.from({length:pageCount},(_,i)=>`@group(0) @binding(${i===0?0:i+2}) var atlas${i}:texture_2d_array<f32>;`).join('\n'));
+ code=code.replaceAll('textureDimensions(atlas)','textureDimensions(atlas0)').replaceAll(highPrecision?'textureLoad(atlas,':'sourceLoad(atlas,','atlasLoad(');
+ code+=`\nfn atlasLoad(xy:vec2i,layer:i32,level:i32)->vec4f{let local=layer/8;switch(layer%8){${Array.from({length:pageCount},(_,i)=>`case ${i}:{return ${highPrecision?'textureLoad':'sourceLoad'}(atlas${i},xy,local,level);}`).join('')}default:{return vec4f(0.);}}}`;
+ const module=device.createShaderModule({code});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));
  const pipeline=await device.createRenderPipelineAsync({layout:device.createPipelineLayout({bindGroupLayouts:[layout]}),vertex:{module,entryPoint:'full'},fragment:{module,entryPoint:'height',targets:[{format}]},primitive:{topology:'triangle-list'}});
- const uniform=device.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});let atlas,capacity=0,slots=[],resident=new Map(),versions=new Map(),tileSize=0,pageBuffer,pageBytes=0;
- return {clear(){atlas?.destroy();atlas=null;capacity=0;slots=[];resident.clear();versions.clear();},draw(encoder,target,{camera,tiles,cache,noOcean,min,max}){
- const ready=tiles.map(t=>({t,e:cache.get(t.key)})).filter(({e})=>e?.state==='ready'&&(highPrecision||e.texture&&e.textureFormat===format&&e.textureMin===min&&e.textureMax===max));
+ const uniform=device.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});let atlases=[],capacities=[],slots=[],resident=new Map(),versions=new Map(),tileSize=0,pageBuffer,pageBytes=0;
+ return {clear(){for(const atlas of atlases)atlas?.destroy();atlases=[];capacities=[];slots=[];resident.clear();versions.clear();},draw(encoder,target,{camera,tiles,cache,noOcean,min,max}){
+ const ready=tiles.map(t=>({t,e:cache.get(t.key)})).filter(({e})=>e?.state==='ready'&&e.texture&&(highPrecision||e.texture&&e.textureFormat===format&&e.textureMin===min&&e.textureMax===max));
  if(ready.length>device.limits.maxTextureArrayLayers)throw Error('Globe tile count exceeds GPU texture array limit.');
- const size=ready[0]?.e.size||512,required=Math.max(1,highPrecision?ready.length:tiles.length);
- if(required>capacity||size!==tileSize){atlas?.destroy();capacity=Math.min(device.limits.maxTextureArrayLayers,2**Math.ceil(Math.log2(required)));tileSize=size;atlas=device.createTexture({size:[size,size,capacity],format,usage:GPUTextureUsage.COPY_DST|GPUTextureUsage.TEXTURE_BINDING});slots=[];resident.clear();versions.clear();}
+ const size=ready[0]?.e.size||tileSize||512;
+ if(size!==tileSize){for(const atlas of atlases)atlas?.destroy();atlases=[];capacities=[];slots=[];resident.clear();versions.clear();tileSize=size;}
+ function ensurePage(page,required){
+  if((capacities[page]||0)>=required)return;
+  const capacity=Math.min(device.limits.maxTextureArrayLayers,2**Math.ceil(Math.log2(Math.max(1,required))));
+  const texture=device.createTexture({size:[size,size,capacity],format,usage:GPUTextureUsage.COPY_SRC|GPUTextureUsage.COPY_DST|GPUTextureUsage.TEXTURE_BINDING});
+  if(atlases[page]){encoder.copyTextureToTexture({texture:atlases[page]},{texture},[size,size,capacities[page]]);retired.push(atlases[page]);}
+  atlases[page]=texture;capacities[page]=capacity;
+ }
+ const retired=[];
+ ensurePage(0,1);
  const active=new Set(ready.map(({e})=>e));for(let i=0;i<slots.length;i++)if(slots[i]&&!active.has(slots[i])){versions.delete(slots[i]);resident.delete(slots[i]);slots[i]=null;}
- for(const {e} of ready){let slot=resident.get(e);if(slot===undefined){slot=slots.findIndex(value=>!value);if(slot<0)slot=slots.length;slots[slot]=e;resident.set(e,slot);versions.delete(e);}if(versions.get(e)!==e.textureVersion||!versions.has(e)){encoder.copyTextureToTexture({texture:e.texture},{texture:atlas,origin:[0,0,slot]},[size,size,1]);versions.set(e,e.textureVersion);}}
+ for(const {e} of ready){let slot=resident.get(e);if(slot===undefined){slot=slots.findIndex(value=>!value);if(slot<0)slot=slots.length;slots[slot]=e;resident.set(e,slot);versions.delete(e);}if(versions.get(e)!==e.textureVersion||!versions.has(e)){const page=slot%8,layer=Math.floor(slot/8);ensurePage(page,layer+1);encoder.copyTextureToTexture({texture:e.texture},{texture:atlases[page],origin:[0,0,layer]},[size,size,1]);versions.set(e,e.textureVersion);}}
  const tableSize=2**Math.ceil(Math.log2(Math.max(4,ready.length*4))),table=new Uint32Array(tableSize*4);let maxZ=0;
  for(let i=0;i<ready.length;i++){const {x,y,z}=ready[i].t;maxZ=Math.max(maxZ,z);let slot=(Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791))&(tableSize-1);while(table[slot*4+3])slot=(slot+1)&(tableSize-1);table.set([x,y,z,resident.get(ready[i].e)+1],slot*4);}
  if(pageBytes<table.byteLength){pageBuffer?.destroy();pageBytes=table.byteLength;pageBuffer=device.createBuffer({size:pageBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});}device.queue.writeBuffer(pageBuffer,0,table);const n=2**maxZ,origin=(camera.center??[.5,.5]).map(value=>value*n),base=origin.map(Math.floor);device.queue.writeBuffer(uniform,0,new Float32Array([...camera.right,0,...camera.up,0,...camera.front,0,camera.width,camera.height,camera.radius,noOcean?1:0,maxZ,tableSize-1,Math.max(0,...tiles.map(t=>t.z)),0,...base,origin[0]-base[0],origin[1]-base[1],min??0,max??1,0,0]));
- const group=device.createBindGroup({layout,entries:[{binding:0,resource:atlas.createView({dimension:'2d-array'})},{binding:1,resource:{buffer:pageBuffer}},{binding:2,resource:{buffer:uniform}}]});const pass=encoder.beginRenderPass({colorAttachments:[{view:target,clearValue:{r:highPrecision?-1e30:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(pipeline);pass.setBindGroup(0,group);pass.draw(3);pass.end();
+ const group=device.createBindGroup({layout,entries:[{binding:0,resource:atlases[0].createView({dimension:'2d-array'})},...Array.from({length:7},(_,i)=>({binding:i+3,resource:(atlases[i+1]??atlases[0]).createView({dimension:'2d-array'})})),{binding:1,resource:{buffer:pageBuffer}},{binding:2,resource:{buffer:uniform}}]});const pass=encoder.beginRenderPass({colorAttachments:[{view:target,clearValue:{r:highPrecision?-1e30:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(pipeline);pass.setBindGroup(0,group);pass.draw(3);pass.end();if(retired.length)queueMicrotask(()=>device.queue.onSubmittedWorkDone().then(()=>{for(const atlas of retired)atlas.destroy();}));
  }};
 }
