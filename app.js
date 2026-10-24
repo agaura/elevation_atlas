@@ -71,6 +71,28 @@ function pump(){while(active<(mobileBudget?3:4)&&queue.length){
  }}).finally(()=>{active--;report();requestRender();pump();});
 }}
 
+// Safari rate-limits history writes. URL bookkeeping must never stop rendering.
+let viewUrlTimer=0,lastViewUrlWrite=-Infinity,pendingViewUrl=null;
+function syncViewUrl(url){
+ pendingViewUrl=url;
+ if(viewUrlTimer)return;
+ function flush(){
+  viewUrlTimer=0;
+  const delay=lastViewUrlWrite+500-performance.now();
+  if(delay>0){viewUrlTimer=setTimeout(flush,delay);return;}
+  const latest=pendingViewUrl;pendingViewUrl=null;
+  if(latest===null||latest===location.hash)return;
+  lastViewUrlWrite=performance.now();
+  try{history.replaceState(null,'',latest);}
+  catch(error){
+   // Keep the newest view and retry after a cooldown, outside the frame path.
+   pendingViewUrl=latest;lastViewUrlWrite=performance.now()+29500;
+   viewUrlTimer=setTimeout(flush,30000);
+   console.warn('Could not update map URL; rendering will continue.',error);
+  }
+ }
+ flush();
+}
 function updateView(){viewDirty=true;requestRender();}
 function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=window.devicePixelRatio||1;const rect=canvas.getBoundingClientRect();width=rect.width;height=rect.height;constrain();const pw=Math.max(1,Math.round(width*dpr)),ph=Math.max(1,Math.round(height*dpr));if(Math.max(pw,ph)>device.limits.maxTextureDimension2D){$('message').textContent='Viewport exceeds this GPU’s texture-size limit. Reduce window size.';return;}if(canvas.width!==pw)canvas.width=pw;if(canvas.height!==ph)canvas.height=ph;const lw=Math.max(1,Math.round(legend.clientWidth*dpr)),lh=Math.max(1,Math.round(legend.clientHeight*dpr));if(legend.width!==lw)legend.width=lw;if(legend.height!==lh)legend.height=lh;
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
@@ -79,7 +101,7 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  for(const [key,entry] of cache){if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}
  for(const t of requested){let entry=cache.get(t.key);if(!entry){entry={state:'queued',abort:new AbortController()};cache.set(t.key,entry);queue.push(t);}else if(entry.state==='queued'&&!queue.some(q=>q.key===t.key))queue.push(t);entry.used=performance.now();}
  trimTerrainCache();
- $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;history.replaceState(null,'',`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
+ $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;syncViewUrl(`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
 function flatRenderTiles(uploadedOnly=false){const ready=e=>uploadedOnly?($('high-precision').checked?e?.state==='ready'&&!!e.texture&&e.textureFormat==='rg32float':byteTextureReady(e,lowPrecisionUpdates.min,lowPrecisionUpdates.max)):e?.state==='ready';return tiles.flatMap(t=>{
  if(ready(cache.get(t.key)))return [t];
  for(let z=t.z-1;z>=0;z--){const factor=2**(t.z-z),x=Math.floor(t.x/factor),y=Math.floor(t.y/factor),sourceKey=`${z}/${wrap(x,2**z)}/${y}`;
