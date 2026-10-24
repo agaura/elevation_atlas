@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {probePosition,sampleProbe} from '../probe.js';
+import {probePosition,sampleProbe,projectProbe} from '../probe.js';
 const view={x:.5,y:.5,zoom:2};
 test('flat cursor projection uses CSS coordinates, wraps longitude and rejects polar overflow',()=>{
  assert.deepEqual(probePosition(view,800,600,0,256,0),{x:.75,y:.5});
@@ -22,4 +22,15 @@ test('probe samples finest ready terrain with class-preserving bilinear interpol
  assert.deepEqual(sampleProbe(cache,{x:.6,y:.5}),{elevation:330,water:true});
  values[6]=NaN;assert.deepEqual(sampleProbe(cache,{x:.9,y:.9}),{elevation:null});
  assert.equal(sampleProbe(new Map(),{x:.5,y:.5}),null);assert.equal(sampleProbe(cache,null),null);
+});
+
+test('pin projection follows the surface and hides offscreen and rear-hemisphere positions',()=>{
+ assert.deepEqual(projectProbe({x:.5,y:.5},view,800,600),{x:400,y:300});
+ assert.equal(projectProbe({x:.99,y:.5},view,800,600),null);
+ assert.equal(projectProbe({x:0,y:.5},view,800,600,0,true),null);
+ assert.equal(projectProbe(null,view,800,600),null);
+ for(const sphere of [false,true])for(const zoom of [0,3,10]){
+  const v={...view,x:.99,y:.3,zoom:zoom+2},point=probePosition(v,800,600,zoom,30,-20,sphere),pixel=projectProbe(point,v,800,600,zoom,sphere);
+  assert.ok(Math.abs(pixel.x-430)<1e-6);assert.ok(Math.abs(pixel.y-280)<1e-6);
+ }
 });

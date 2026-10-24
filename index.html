@@ -31,8 +31,15 @@
             </div>
         </header>
         <aside>
+            <form id="location-search" role="search">
+                <label for="location-query" class="sr">Coordinates or address</label>
+                <div class="search-row"><input id="location-query" type="search" placeholder="Coordinates or address" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
+                <ul id="search-results" aria-label="Search results" hidden></ul>
+                <div id="search-status" role="status"></div>
+            </form>
             <section class="color-controls">
-                <div class="caption"><span>01</span> COLOR MAP</div><label class="toggle water-toggle">Water <input
+                <div class="caption"><span>01</span> COLOR MAP</div>
+                <label class="toggle water-toggle">Water <input
                         id="water" type="checkbox"></label>
                 <div class="slider-control">
                     <div class="control-heading"><label for="min">Minimum elevation</label><span
@@ -142,6 +149,7 @@
             </section>
             <section class="technical">
                 <div class="caption"><span>02</span> VIEW & RENDERING</div>
+                <label class="toggle map-toggle">Map labels <input id="map-mode" type="checkbox"></label>
                 <div class="map-info">
                     <span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span>
                     <div class="probe-readout">
@@ -178,20 +186,24 @@
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
                 <p><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
                         sources</a><br><a href="https://openwaters.io/charts/seascape#license" target="_blank"
-                        rel="noreferrer">Open Waters / Seascape sources</a></p>
+                        rel="noreferrer">Open Waters / Seascape sources</a><br><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
             </footer>
         </aside>
         <main id="map-panel">
             <div class="stage"><canvas id="map"
                     aria-label="Interactive elevation map. Drag to pan or rotate; scroll or pinch to zoom."
                     tabindex="0"></canvas>
+                <svg id="location-pin" viewBox="0 0 24 32" aria-label="Pinned location" role="img" hidden>
+                    <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
+                    <circle cx="12" cy="11" r="3.5" />
+                </svg>
                 <button id="fullscreen-exit" class="icon-button" type="button" aria-label="Exit fullscreen"
                     title="Exit fullscreen" hidden>
                     <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4"/>
                     </svg>
                 </button>
-                <div id="message" role="status">Initializing WebGPU…</div>
+                <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div></div>
             </div>
         </main>
     </div>

@@ -13,6 +13,22 @@ export function probePosition(view,width,height,sphereZoom,x,y,sphere=false){
  return v>=0&&v<1?{x:u,y:v}:null;
 }
 
+// Project a pinned geographic position into CSS pixels; reject the hidden hemisphere.
+export function projectProbe(point,view,width,height,sphereZoom=0,sphere=false){
+ if(!point)return null;
+ const dx=wrap(point.x-view.x+.5,1)-.5;let x,y;
+ if(sphere){
+  const lat=Math.atan(Math.sinh(Math.PI*(1-2*point.y))),centerLat=Math.atan(Math.sinh(Math.PI*(1-2*view.y))),lon=dx*2*Math.PI;
+  const sl=Math.sin(lat),cl=Math.cos(lat),sc=Math.sin(centerLat),cc=Math.cos(centerLat);
+  if(sl*sc+cl*cc*Math.cos(lon)<=0)return null;
+  const radius=Math.min(width,height)*.46*2**sphereZoom;
+  x=width/2+radius*cl*Math.sin(lon);
+  // Local-angle form avoids cancellation near the center at native terrain zoom.
+  y=height/2-radius*(Math.sin(lat-centerLat)+sc*cl*2*Math.sin(lon/2)**2);
+ }else{const scale=256*2**view.zoom;x=width/2+dx*scale;y=height/2+(point.y-view.y)*scale;}
+ return x>=0&&x<=width&&y>=0&&y<=height?{x,y}:null;
+}
+
 export function sampleProbe(cache,point,maxzoom=18){
  if(!point)return null;
  for(let z=maxzoom;z>=0;z--){
