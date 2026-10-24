@@ -18,7 +18,7 @@ try{
  const controlsTop=await page.locator('.color-controls').evaluate(e=>e.getBoundingClientRect().top);
  await search('Springfield');await page.waitForFunction(()=>document.querySelectorAll('#search-results button').length===2);assert.equal(await page.locator('.color-controls').evaluate(e=>e.getBoundingClientRect().top),controlsTop);await page.locator('#search-results button').filter({hasText:'Massachusetts'}).click();await page.waitForFunction(()=>Math.abs(Number(location.hash.slice(1).split('/')[1])-107.42/360)<1e-6);assert.equal(await page.locator('#search-results').isVisible(),false);
  await search('Nothing');await page.waitForFunction(()=>document.querySelector('#search-status').textContent==='No locations found.');
- const map=page.locator('#map'),box=await map.boundingBox();await map.dblclick({position:{x:box.width/2,y:box.height/2}});await page.waitForFunction(()=>!document.querySelector('#location-pin').hasAttribute('hidden'));
+ const map=page.locator('#map'),box=await map.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.waitForTimeout(620);await page.mouse.up();await page.waitForFunction(()=>!document.querySelector('#location-pin').hasAttribute('hidden'));
  const pinBox=await page.locator('#location-pin').boundingBox();assert.equal(pinBox.width,24);assert.equal(pinBox.height,32);
  await page.locator('#palette').selectOption('0');await page.waitForFunction(()=>getComputedStyle(document.querySelector('#location-pin')).stroke==='rgb(234, 242, 250)');
  await page.locator('#palette').selectOption('1');await page.waitForFunction(()=>getComputedStyle(document.querySelector('#location-pin')).stroke==='rgb(143, 197, 255)');

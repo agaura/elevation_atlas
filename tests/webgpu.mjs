@@ -207,7 +207,7 @@ const panelBox=await page.locator('#map-panel').boundingBox(),canvasBox=await pa
  await recovery.waitForFunction(()=>document.querySelector('#cursor-elevation').textContent==='600 m');
  const hoverLocation=await recovery.locator('#position').textContent();
  await recovery.mouse.move(probeX+50,probeY+30);await recovery.waitForFunction(old=>document.querySelector('#position').textContent!==old,hoverLocation);
- const headingHeight=await recovery.locator('#probe-unpin').evaluate(e=>e.parentElement.getBoundingClientRect().height);await recovery.mouse.dblclick(probeX,probeY);await recovery.waitForFunction(()=>!document.querySelector('#probe-unpin').hidden);
+ const headingHeight=await recovery.locator('#probe-unpin').evaluate(e=>e.parentElement.getBoundingClientRect().height);await recovery.mouse.move(probeX,probeY);await recovery.mouse.down();await recovery.waitForTimeout(620);await recovery.mouse.up();await recovery.waitForFunction(()=>!document.querySelector('#probe-unpin').hidden);
  const pinnedLocation=await recovery.locator('#pinned-position').textContent();assert.equal(await recovery.locator('#pinned-elevation').textContent(),'600 m');assert.equal(await recovery.locator('#probe-unpin').evaluate(e=>e.parentElement.getBoundingClientRect().height),headingHeight);assert.equal(await recovery.locator('#position').evaluate(e=>getComputedStyle(e).fontSize),await recovery.locator('#cursor-elevation').evaluate(e=>getComputedStyle(e).fontSize));
  await recovery.mouse.move(probeX+80,probeY);await recovery.waitForFunction(old=>document.querySelector('#position').textContent!==old,pinnedLocation);assert.equal(await recovery.locator('#cursor-elevation').textContent(),'600 m');await recovery.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  assert.equal(await recovery.locator('#pinned-position').textContent(),pinnedLocation);
@@ -218,7 +218,7 @@ const panelBox=await page.locator('#map-panel').boundingBox(),canvasBox=await pa
  await recovery.locator('#projection').check();await recovery.mouse.move(probeX,probeY);
  await recovery.waitForFunction(()=>document.querySelector('#cursor-elevation').textContent==='600 m');
  await recovery.mouse.move(probeBox.x+3,probeBox.y+3);await recovery.waitForFunction(()=>document.querySelector('#position').textContent==='—');
- console.log('PASS native elevation hover, geographic double-click pin across pan, unpin, and sphere hover/background');
+ console.log('PASS native elevation hover, geographic press-and-hold pin across pan, unpin, and sphere hover/background');
  await recovery.locator('#projection').uncheck();
 
  // Use realistic global metadata with the deterministic worker to exercise caps.

@@ -1,3 +1,4 @@
+import {setupCanvasGestures} from './canvas-gestures.js';
 import {uploadTerrainTexture,LowPrecisionUpdates,byteTextureReady,selectByteUploads} from './precision.js';
 import {setupSearch,searchDestination} from './search.js';
 import {MapOverlay} from './map-overlay.js';
@@ -306,9 +307,10 @@ function updateProbe(){
  if(screen){marker.style.left=`${screen.x}px`;marker.style.top=`${screen.y}px`;}
 
 }
-canvas.addEventListener('dblclick',event=>{
- stopMomentum();stopNavigation();cursor={x:event.clientX,y:event.clientY,inside:true};
- const point=cursorPoint();if(point){pinnedProbe=point;requestProbeUpdate();}
+setupCanvasGestures(canvas,{
+ stop:stopMomentum,
+ zoom(x,y){stopMomentum();stopNavigation();const r=canvas.getBoundingClientRect();zoomAt(1,x-r.left-width/2,y-r.top-height/2);},
+ pin(x,y){stopMomentum();stopNavigation();cursor={x,y,inside:true};const point=cursorPoint();if(point){pinnedProbe=point;requestProbeUpdate();}}
 });
 $('probe-unpin').addEventListener('click',()=>{pinnedProbe=null;requestProbeUpdate();});
 

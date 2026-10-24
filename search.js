@@ -41,7 +41,7 @@ export function geocoderLocations(features){
 export function setupSearch(onNavigate){
  const form=document.getElementById('location-search'),input=document.getElementById('location-query'),results=document.getElementById('search-results'),status=document.getElementById('search-status');let controller,generation=0,choices=[],lastQuery='';const cache=new Map();
  function clear(){choices=[];results.replaceChildren();results.hidden=true;}
- function select(location){onNavigate(location);clear();status.textContent=location.name||`${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;}
+ function select(location){generation++;controller?.abort();input.value=location.name||`${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;clear();status.textContent='';onNavigate(location);}
  input.addEventListener('input',()=>{generation++;controller?.abort();clear();status.textContent='';});
  input.addEventListener('keydown',event=>{if(event.key==='ArrowDown'&&choices.length){event.preventDefault();results.querySelector('button')?.focus();}if(event.key==='Escape'){controller?.abort();generation++;clear();status.textContent='';event.stopPropagation();}});
  form.addEventListener('submit',async event=>{
