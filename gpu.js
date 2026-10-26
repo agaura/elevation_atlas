@@ -1,7 +1,7 @@
 import {nativeExposure} from './precision.js';
 import {createSpherePass} from './sphere-gpu.js';
 import {createMapPass} from './map-gpu.js';
-import {COLOR_WGSL} from './colors.js';
+import {COLOR_WGSL,COLOR_MAPS} from './colors.js';
 const quad=`struct Out{@builtin(position) position:vec4f,@location(0) uv:vec2f}
 @vertex fn full(@builtin(vertex_index)i:u32)->Out{let points=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));var o:Out;o.position=vec4f(points[i],0,1);o.uv=vec2f((points[i].x+1)*.5,(1-points[i].y)*.5);return o;}`;
 const params=`struct Params{rect:vec4f,range:vec4f,screen:vec4f,effects:vec4f,highlight:vec4f,encoding:vec4f}
@@ -49,7 +49,9 @@ if(!legend){let value=textureLoad(terrain,coord,0).r;validTerrain=value>=-40000&
 let colorT=select(t,1.-t,p.highlight.z>.5);var c=vec3f(colorT);let emphasis=p.effects.y>.5;
 let weight=pow(max(0.,1.-abs(elevation-p.highlight.x)/max(p.highlight.y,.0000001)),2.);
 if(p.range.z<.5&&emphasis){let base=linearP3ToOKLab(decodeSRGB(c));let peak=linearP3ToOKLab(vec3f(p.range.w));c=oklabToP3(mix(base,peak,weight));}
-if(p.range.z>.5){var lab:vec3f;if(p.range.z>1.5){lab=colorMapAntarctica(colorT,p.effects.x,weight,p.range.w,emphasis);}else{lab=colorMapThermal(colorT,p.effects.x,weight,p.range.w,emphasis);}c=max(oklabToP3(lab),vec3f(0));}
+if(p.range.z>.5){var lab:vec3f;switch u32(p.range.z){
+${COLOR_MAPS.filter(map=>map.shader).map(map=>`case ${map.id}u:{lab=${map.shader}(colorT,p.effects.x,weight,p.range.w,emphasis);}`).join('\n')}
+default:{lab=colorMapThermal(colorT,p.effects.x,weight,p.range.w,emphasis);}}c=max(oklabToP3(lab),vec3f(0));}
 if(!legend&&validTerrain&&p.effects.z>0.&&textureLoad(terrain,coord,0).g>0.){let edgeCenter=(elevation-p.range.x)/max(p.range.y-p.range.x,.00001);let edge=sobel(coord,edgeCenter,textureLoad(terrain,coord,0).g);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(1.,6.,pow(edge,.7))-.6,.5,4.),p.effects.z);scale=min(scale,decodeSRGBComponent(3.95)/max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
 if(!legend&&!validTerrain){c=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);}
 if(!legend&&p.highlight.w>.5){

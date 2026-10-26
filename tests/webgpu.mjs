@@ -35,7 +35,7 @@ try{
   const brightness=(data,x)=>data[16*256+x*4]+data[16*256+x*4+1]+data[16*256+x*4+2];
   if(brightness(cutoffOn,15)<=brightness(cutoffOff,15))throw Error('Edge highlighting must not abruptly switch off when a slope crosses the exposure minimum');
   for(let i=0;i<values.length;i+=2){values[i]=600;values[i+1]=1;}device.queue.writeTexture({texture},values,{bytesPerRow:32},[4,4]);
-  for(const palette of [0,1,2]){
+  for(const palette of [0,1,2,3,4]){
    const reverse=await pixels(0,-100,{palette,reversed:true,emphasis:false});
    const equivalent=await pixels(0,-800,{palette,max:1300,emphasis:false});
    if(!reverse.every((v,i)=>Math.abs(v-equivalent[i])<=1))throw Error('Palette reversal must map t to 1-t in every palette');
@@ -76,7 +76,7 @@ try{
   const missingTerrainMap=await pixels(0,-100,{tiles:[],cache:new Map(),mapOverlay:{canvas:mask,revision:3}});if(mapRGB(missingTerrainMap,15)[2]<200)throw Error('Labels and borders must remain visible over hidden water or missing terrain');
 
   const highlightChecks=[];
-  for(const palette of [0,1,2]){
+  for(const palette of [0,1,2,3,4]){
    const settings={palette,edges:0,selectedElevation:600,highlightWidth:100};
    const base=await pixels(0,-100,{...settings,emphasis:false}),peak=await pixels(0,-100,{...settings,emphasis:true});
    const end=await pixels(0,-100,{...settings,selectedElevation:700,emphasis:true});
