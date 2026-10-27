@@ -16,12 +16,11 @@
                 gtag('config', 'G-BBWS173BMQ');
             </script>
             <div>
-                <div class="eyebrow">EARTH SYSTEMS / TERRAIN EXPLORER</div>
                 <h1>Elevation <span>Atlas</span></h1>
             </div>
             <div class="header-right">
-                <div class="map-actions"><label class="toggle projection-toggle"><span>Flat</span><input id="projection"
-                            type="checkbox" aria-label="Sphere view"><span>Sphere</span></label><button id="fullscreen"
+                <div class="map-actions"><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
+                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
                         title="Enter fullscreen"><svg class="expand-icon" viewBox="0 0 20 20" aria-hidden="true">
                             <path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" />
@@ -32,18 +31,20 @@
         </header>
         <aside>
             <form id="location-search" role="search">
-                <label for="location-query" class="sr">Coordinates or address</label>
-                <div class="search-row"><input id="location-query" type="search" placeholder="Coordinates or address" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
+                <label for="location-query" class="sr">Coordinates or Address</label>
+                <div class="search-row"><input id="location-query" type="search" placeholder="Coordinates or Address" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
                 <ul id="search-results" aria-label="Search results" hidden></ul>
                 <div id="search-status" role="status"></div>
             </form>
             <section class="color-controls">
-                <div class="caption"><span>01</span> COLOR MAP</div>
                 <label class="toggle water-toggle">Water <input
-                        id="water" type="checkbox"></label>
+                        id="water" type="checkbox" role="switch"></label>
+                <label class="toggle">Auto Color Range <input id="auto-color-range" type="checkbox" role="switch" aria-controls="elevation-range-controls" checked></label>
+                <div id="elevation-range-controls" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner">
+                <label class="toggle">Auto Slider Range <input id="auto-slider-range" type="checkbox" role="switch" checked></label>
                 <div class="slider-control">
-                    <div class="control-heading"><label for="min">Minimum elevation</label><span
-                            class="value-edit"><input id="min-number" aria-label="Minimum elevation value" type="number"
+                    <div class="control-heading"><label for="min">Minimum Elevation</label><span
+                            class="value-edit"><input id="min-number" aria-label="Minimum Elevation value" type="number"
                                 step="any" value="-11000"><span class="unit">m</span><span class="steppers"><button
                                     type="button" data-step-slider="min" data-step-dir="1"
                                     aria-label="Increase minimum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
@@ -51,9 +52,7 @@
                                     </svg></button><button type="button" data-step-slider="min" data-step-dir="-1"
                                     aria-label="Decrease minimum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
                                         <path d="m4 6 4 4 4-4" />
-                                    </svg></button></span></span></div>
-                    <div class="slider-row has-lock"><input id="min" type="range" min="-12000" max="9000" step="any"
-                            value="-11000"><button id="min-lock" type="button" class="icon-button lock-button"
+                                    </svg></button></span></span><button id="min-lock" type="button" class="icon-button lock-button"
                             aria-pressed="false" aria-label="Lock minimum elevation" title="Lock minimum elevation"><svg
                                 viewBox="0 0 20 20" aria-hidden="true">
                                 <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
@@ -61,10 +60,12 @@
                                 <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
                                 <path d="M10 12v2" />
                             </svg></button></div>
+                    <div class="slider-row"><input id="min" type="range" min="-12000" max="9000" step="any"
+                            value="-11000"></div>
                 </div><output id="min-value" hidden></output>
                 <div class="slider-control">
-                    <div class="control-heading"><label for="max">Maximum elevation</label><span
-                            class="value-edit"><input id="max-number" aria-label="Maximum elevation value" type="number"
+                    <div class="control-heading"><label for="max">Maximum Elevation</label><span
+                            class="value-edit"><input id="max-number" aria-label="Maximum Elevation value" type="number"
                                 step="any" value="8850"><span class="unit">m</span><span class="steppers"><button
                                     type="button" data-step-slider="max" data-step-dir="1"
                                     aria-label="Increase maximum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
@@ -72,9 +73,7 @@
                                     </svg></button><button type="button" data-step-slider="max" data-step-dir="-1"
                                     aria-label="Decrease maximum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
                                         <path d="m4 6 4 4 4-4" />
-                                    </svg></button></span></span></div>
-                    <div class="slider-row has-lock"><input id="max" type="range" min="-12000" max="9000" step="any"
-                            value="8850"><button id="max-lock" type="button" class="icon-button lock-button"
+                                    </svg></button></span></span><button id="max-lock" type="button" class="icon-button lock-button"
                             aria-pressed="false" aria-label="Lock maximum elevation" title="Lock maximum elevation"><svg
                                 viewBox="0 0 20 20" aria-hidden="true">
                                 <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
@@ -82,9 +81,11 @@
                                 <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
                                 <path d="M10 12v2" />
                             </svg></button></div>
+                    <div class="slider-row"><input id="max" type="range" min="-12000" max="9000" step="any"
+                            value="8850"></div>
                 </div><output id="max-value" hidden></output>
-                <label for="palette" class="sr">Color map</label>
-                <div class="palette-picker"><select id="palette">
+                </div></div>
+                <div class="palette-picker"><label for="palette" class="palette-label">Color Map:</label><select id="palette">
                         <option value="0">Grayscale</option>
                         <option value="1" selected>Thermal</option>
                         <option value="2">Arctic Ocean</option>
@@ -97,14 +98,13 @@
                         </svg></button></div>
                 <div class="legend-wrap"><canvas id="legend" tabindex="0" role="slider" aria-label="Elevation highlight"
                         aria-valuemin="-11000" aria-valuemax="8850" aria-valuenow="-1075"></canvas>
-                    <div id="legend-hover" class="legend-hover" hidden><i></i><span id="legend-hover-value"></span>
-                    </div>
                 </div>
-                <div class="ends"><span id="legend-min"></span><span id="legend-max"></span></div>
+                <div class="ends"><span id="legend-min"></span><span id="legend-max"></span>
+                    <div id="legend-hover" class="legend-hover" hidden><span id="legend-hover-value"><output id="highlight-value"></output></span></div>
+                </div>
                 <div class="highlight-heading"><label class="toggle">Highlight <input id="highlight"
-                            type="checkbox"></label><span id="highlight-value" aria-live="polite">— m</span></div>
-                <div id="highlight-band" class="note">Hover to preview · click to pin an elevation</div>
-                <fieldset id="highlight-controls" disabled>
+                            type="checkbox" role="switch"></label></div>
+                <div id="highlight-panel" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner"><fieldset id="highlight-controls" disabled>
                     <legend class="sr">Highlight settings</legend>
                     <div class="slider-control">
                         <div class="control-heading"><label for="highlight-elevation">Elevation</label><span
@@ -118,14 +118,22 @@
                                         data-step-dir="-1" aria-label="Decrease elevation"><svg viewBox="0 0 16 16"
                                             aria-hidden="true">
                                             <path d="m4 6 4 4 4-4" />
-                                        </svg></button></span></span></div>
+                                        </svg></button></span></span><button id="highlight-elevation-lock" type="button"
+                                class="icon-button lock-button" aria-pressed="true"
+                                aria-label="Unlock highlight elevation" title="Unlock highlight elevation"><svg
+                                    viewBox="0 0 20 20" aria-hidden="true">
+                                    <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
+                                    <path class="locked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5" />
+                                    <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
+                                    <path d="M10 12v2" />
+                                </svg></button></div>
                         <div class="slider-row"><input id="highlight-elevation" type="range" min="-12000" max="9000"
                                 step="any" value="-1075"></div>
                     </div>
                     <div class="slider-control">
-                        <div class="control-heading"><label for="highlight-width">Half-width</label><span
-                                class="value-edit"><span class="value-prefix">±</span><input id="highlight-width-number"
-                                    aria-label="Half-width value" type="number" step="any" value="2481.25"><span
+                        <div class="control-heading"><label for="highlight-width">Half-Width</label><span
+                                class="value-edit"><input id="highlight-width-number"
+                                    aria-label="Half-Width value" type="number" step="any" value="2481.25"><span
                                     class="unit">m</span><span class="steppers"><button type="button"
                                         data-step-slider="highlight-width" data-step-dir="1"
                                         aria-label="Increase half-width"><svg viewBox="0 0 16 16" aria-hidden="true">
@@ -134,9 +142,7 @@
                                         data-step-dir="-1" aria-label="Decrease half-width"><svg viewBox="0 0 16 16"
                                             aria-hidden="true">
                                             <path d="m4 6 4 4 4-4" />
-                                        </svg></button></span></span></div>
-                        <div class="slider-row has-lock"><input id="highlight-width" type="range" min="1e-06"
-                                max="24000" step="any" value="2481.25"><button id="highlight-width-lock" type="button"
+                                        </svg></button></span></span><button id="highlight-width-lock" type="button"
                                 class="icon-button lock-button" aria-pressed="false"
                                 aria-label="Lock highlight half-width" title="Lock highlight half-width"><svg
                                     viewBox="0 0 20 20" aria-hidden="true">
@@ -145,45 +151,28 @@
                                     <path class="unlocked-path" d="M6.5 8.5V6a3.5 3.5 0 0 1 6.8-1.2" />
                                     <path d="M10 12v2" />
                                 </svg></button></div>
+                        <div class="slider-row"><input id="highlight-width" type="range" min="1e-06"
+                                max="24000" step="any" value="2481.25"></div>
                     </div>
-                </fieldset><label class="toggle edge-toggle">Edge highlighting <input id="edges" type="checkbox"
+                </fieldset></div></div><label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
-            </section>
-            <section class="technical">
-                <div class="caption"><span>02</span> VIEW & RENDERING</div>
-                <label class="toggle precision-toggle">High Precision <input id="high-precision" type="checkbox" checked></label>
-                <label class="toggle map-toggle">Map labels <input id="map-mode" type="checkbox"></label>
-                <div class="map-info">
+                <label class="toggle precision-toggle">High Precision <input id="high-precision" type="checkbox" role="switch" checked></label>
+                <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
+                <details class="render-details">
+                    <summary>Rendering Details</summary>
                     <span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span>
-                    <div class="probe-readout">
-                        <div class="probe-heading"><span id="probe-status">Hover · hold to pin</span></div>
-                        <dl class="probe-values">
-                            <dt>Coordinates</dt><dd id="position">—</dd>
-                            <dt>Elevation</dt><dd id="cursor-elevation">—</dd>
-                        </dl>
-                    </div>
-                    <div class="probe-readout">
-                        <div class="probe-heading">
-                            <span>Pinned location</span>
-                            <button id="probe-unpin" type="button" hidden>Unpin</button>
-                        </div>
-                        <dl class="probe-values">
-                            <dt>Coordinates</dt><dd id="pinned-position">—</dd>
-                            <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
-                        </dl>
-                    </div>
-                </div>
                 <dl>
                     <dt>Presentation</dt>
                     <dd id="hdr">Initializing</dd>
-                    <dt>Device pixels</dt>
+                    <dt>Device Pixels</dt>
                     <dd id="pixels">—</dd>
-                    <dt>Source level</dt>
+                    <dt>Source Level</dt>
                     <dd id="level">—</dd>
-                    <dt>Tile coverage</dt>
+                    <dt>Tile Coverage</dt>
                     <dd id="coverage">—</dd>
                 </dl>
                 <div class="map-help"><span id="scale">—</span></div>
+                </details>
             </section>
             <footer>
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
@@ -196,7 +185,7 @@
             <div class="stage"><canvas id="map"
                     aria-label="Interactive elevation map. Drag to pan or rotate; scroll, pinch, or double-tap to zoom. Press and hold to pin a location."
                     tabindex="0"></canvas>
-                <svg id="location-pin" viewBox="0 0 24 32" aria-label="Pinned location" role="img" hidden>
+                <svg id="location-pin" viewBox="0 0 24 32" aria-label="Pinned Location" role="img" hidden>
                     <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
                     <circle cx="12" cy="11" r="3.5" />
                 </svg>
@@ -206,7 +195,25 @@
                         <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4"/>
                     </svg>
                 </button>
-                <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div></div>
+                <div class="canvas-readouts">
+                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div></div>
+                    <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
+                        <div id="cursor-readout" class="probe-readout" hidden>
+                            <div class="probe-heading"><span id="probe-status">Cursor Location</span></div>
+                            <dl class="probe-values">
+                                <dt>Coordinates</dt><dd id="position">—</dd>
+                                <dt>Elevation</dt><dd id="cursor-elevation">—</dd>
+                            </dl>
+                        </div>
+                        <div id="pinned-readout" class="probe-readout" hidden>
+                            <div class="probe-heading"><span>Pinned Location</span><button id="probe-unpin" type="button" hidden>Unpin</button></div>
+                            <dl class="probe-values">
+                                <dt>Coordinates</dt><dd id="pinned-position">—</dd>
+                                <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>

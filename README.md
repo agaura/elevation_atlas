@@ -41,9 +41,9 @@ Zoom stops when one CSS pixel matches one texel of the finest global source leve
 
 Edge gradients use unclipped elevation differences, avoiding hard contour cutoffs at exposure bounds. Globe sampling uses an integer camera-relative tile origin and stable small-angle calculations to retain native texel precision at high zoom. GPU regressions check distinct adjacent samples and identical terrain shading across canvas resizes in both projections.
 
-The sidebar reports cursor coordinates and bilinearly sampled native elevation in both projections. Double-click the map to pin a geographic location; Unpin resumes hover tracking. Pinned locations stay fixed while panning and zooming, and elevation refreshes as finer tiles arrive. Fullscreen has a top-right exit button as well as Escape. CPU/GPU tile storage shares the 256 MiB cache budget.
+A compact bottom-right canvas overlay reports cursor coordinates and bilinearly sampled native elevation in both projections, including fullscreen. Press and hold to pin a geographic location; Unpin removes the pin while live hover remains independent. Double-tap or double-click zooms in. Pinned locations stay fixed while panning and zooming, and elevation refreshes as finer tiles arrive. Fullscreen has a top-right exit button as well as Escape. CPU/GPU tile storage shares the 256 MiB cache budget.
 
-Hover and pinned locations have independent, labeled coordinate/elevation readouts with matching type sizes. Pinning leaves live hover enabled; both readout areas and their heading heights stay fixed to avoid layout shifts.
+Hover and pinned locations have independent, labeled coordinate/elevation readouts with matching type sizes. The overlay appears only when hovering or a pin exists; hover and pinned rows are shown as needed. Loading messages remain at the lower left, wrapping above location readings on narrow screens. Sidebar switches retain full-row click targets with compact, unboxed styling.
 
 ## Map mode
 
@@ -82,3 +82,9 @@ With High Precision off, native exposure queries wait until movement and tile ar
 Terrain memory and uploads: both precision modes stage at most two new textures per moving frame or four while idle. Touch devices use three concurrent tile loads and a 64 MiB retained terrain-cache budget (desktop: four loads and 192 MiB). Visible tiles and active parent previews are preserved even if they exceed that budget. Offscreen GPU copies are released promptly; native CPU data remains available until cache eviction. Sphere terrain uses eight independently growing atlas pages, copying existing layers on the GPU rather than rebuilding one large atlas.
 
 Available color maps: Grayscale, Thermal (default), Arctic Ocean (formerly Antarctica), Spirit (formerly Polar Haunt), and Hawaii (formerly Tropical Fire). All palettes support HDR output, reversal, and elevation-based highlighting.
+
+Auto Color Range is on by default and hides the elevation limits. Switching it off reveals and locks both limits at their current values. Individual locks still allow one bound to follow the view; unlocking both turns Auto Color Range back on and hides the limits.
+
+Elevation and Highlight controls expand/collapse with a short slide transition (disabled for reduced motion). Locked limits remain fully editable and visually enabled: their locks pause automatic adjustment only. Search, palette selection, and numeric editors use subtle background fills instead of underlines.
+
+Auto Slider Range appears with the manual elevation controls and defaults on. Slider domains follow native visible elevation bounds independently of locked color limits; disabling it eases the domains back to −12,000…9,000 m over 500 ms. Domains expand to retain selected values outside the current view, so native range-input clamping cannot silently change locked numbers. All slider locks sit beside their numeric editors.

@@ -148,7 +148,7 @@ try{
  await limit('highlight-width',band);await limit('max',8000);await page.locator('#highlight-width-lock').click();
  assert.equal(await page.locator('#highlight-width-lock').getAttribute('aria-pressed'),'false');
  await limit('max',4000);assert.equal(Number(await page.locator('#highlight-value').getAttribute('data-elevation')),pinned);assert.equal(Number(await page.locator('#highlight-width').inputValue()),band/2);
- await limit('max',100);assert.equal(Number(await page.locator('#highlight-value').getAttribute('data-elevation')),pinned);assert.match(await page.locator('#highlight-band').textContent(),/outside scale/);
+ await limit('max',100);assert.equal(Number(await page.locator('#highlight-value').getAttribute('data-elevation')),pinned);assert.equal(await page.locator('#legend-hover').isVisible(),true);assert.equal(await page.locator('#legend-min').isVisible(),true);assert.equal(await page.locator('#legend-max').isVisible(),true);
  assert.equal(Number(await page.locator('#highlight-width').inputValue()),12.5);
  await page.locator('#highlight-width').fill('25');await page.locator('#highlight-width').dispatchEvent('input');assert.equal(await page.locator('#highlight-width-number').inputValue(),'25');assert.equal(Number(await page.locator('#highlight-value').getAttribute('data-elevation')),pinned);
  await limit('max',200);assert.equal(Number(await page.locator('#highlight-width').inputValue()),50);assert.equal(Number(await page.locator('#highlight-value').getAttribute('data-elevation')),pinned);

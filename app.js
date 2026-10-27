@@ -1,3 +1,4 @@
+import {setupRepeatButton} from './repeat-button.js';
 import {setupCanvasGestures} from './canvas-gestures.js';
 import {uploadTerrainTexture,LowPrecisionUpdates,byteTextureReady,selectByteUploads} from './precision.js';
 import {setupSearch,searchDestination} from './search.js';
@@ -17,11 +18,12 @@ let sphereZoom=0,globeCamera=null;
 const lowPrecisionUpdates=new LowPrecisionUpdates(min,max);let lowPrecisionWake=0;
 function wakeLowPrecision(delay=180){if(lowPrecisionWake)return;lowPrecisionWake=setTimeout(()=>{lowPrecisionWake=0;requestRender();},Math.max(16,delay));}
 const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
-let pinnedElevation=null,previewElevation=null,hoverPosition=.5,highlightFraction=1/8,lockedHighlightWidth=null,hovering=false,exposureDirty=true,exposureConfig=0,lastViewMotion=-Infinity,viewDirty=false;
+const sliderDomain={min:new SineTransition(-12000),max:new SineTransition(9000)};let viewBounds={min:-12000,max:9000};
+let highlightElevationLocked=true,highlightPosition=.5,pinnedElevation=null,previewElevation=null,hoverPosition=.5,highlightFraction=1/8,lockedHighlightWidth=null,hovering=false,highlightPreviewOnly=false,exposureDirty=true,exposureConfig=0,lastViewMotion=-Infinity,viewDirty=false;
 const fallback={land:{tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18},sea:{tiles:['https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18,schema:1}};
 const mapOverlay=new MapOverlay(requestRender,message=>{$('map-status').textContent=message;});
 function requestRender(){if(!frame)frame=requestAnimationFrame(time=>{frame=0;if(viewDirty){viewDirty=false;updateViewNow();}render(time);});}
-function controls(){for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
+function controls(){applySliderDomain();for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
 function report(){const ready=tiles.filter(t=>$('high-precision').checked?cache.get(t.key)?.textureFormat==='rg32float'&&!!cache.get(t.key)?.texture:byteTextureReady(cache.get(t.key),lowPrecisionUpdates.min,lowPrecisionUpdates.max)).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':'';}
 const tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});
 let nextRequest=0;const pendingTiles=new Map();
@@ -109,6 +111,23 @@ function flatRenderTiles(uploadedOnly=false){const ready=e=>uploadedOnly?($('hig
   if(ready(cache.get(sourceKey)))return [{...t,sourceKey,uv:[wrap(t.x,factor)/factor,wrap(t.y,factor)/factor,1/factor]}];
  }return [];
 });}
+// Range domains move independently of the selected color limits. Expand just
+// enough to retain selected values outside the view; native range inputs clamp otherwise.
+function applySliderDomain(time=performance.now()){
+ const lower=Math.min(sliderDomain.min.valueAt(time),min),upper=Math.max(sliderDomain.max.valueAt(time),max);
+ for(const id of ['min','max']){const input=$(id);input.min=lower;input.max=upper;input.value=id==='min'?min:max;}
+ syncNumbers();
+}
+function retargetSliderDomain(time=performance.now()){
+ const automatic=$('auto-slider-range').checked;
+ sliderDomain.min.retarget(automatic?viewBounds.min:-12000,time);
+ sliderDomain.max.retarget(automatic?viewBounds.max:9000,time);
+}
+function advanceSliderDomain(time){
+ if(reducedMotion.matches){sliderDomain.min.snap(sliderDomain.min.target);sliderDomain.max.snap(sliderDomain.max.target);}
+ applySliderDomain(time);
+ return sliderDomain.min.active(time)||sliderDomain.max.active(time);
+}
 function movingView(time){return pointers.size>0||momentumFrame!==0||navigationFrame!==0||time-lastViewMotion<100;}
 function advanceExposure(time){
  const moving=movingView(time);
@@ -119,10 +138,10 @@ function advanceExposure(time){
 }
 function retargetExposure(time){const moving=movingView(time);exposureTweens.min.retarget(exposureTargets.min,time,moving);exposureTweens.max.retarget(exposureTargets.max,time,moving);}
 function render(time=performance.now()){
- if(!renderer||!metadata)return;const easing=advanceExposure(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);highlightLabel();updateProbe();
+ if(!renderer||!metadata)return;const easing=advanceExposure(time),domainEasing=advanceSliderDomain(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);highlightLabel();updateProbe();
  const mapMask=$('map-mode').checked?mapOverlay.draw({view,width,height,dpr,camera:globeCamera}):null;
  const revision=exposureConfig,highPrecision=$('high-precision').checked;let renderTiles=globeCamera?tiles:flatRenderTiles(),byteUploadsPending=false;
- const pendingExposure=exposureDirty&&(!locks.min||!locks.max),quiet=highPrecision||lowPrecisionUpdates.ready(time,movingView(time));
+ const pendingExposure=exposureDirty&&(!locks.min||!locks.max||$('auto-slider-range').checked),quiet=highPrecision||lowPrecisionUpdates.ready(time,movingView(time));
  if(!highPrecision){
   const desiredMin=locks.min?min:exposureTargets.min,desiredMax=locks.max?max:exposureTargets.max;
   lowPrecisionUpdates.commit(desiredMin,desiredMax,time,movingView(time),pendingExposure);
@@ -149,6 +168,7 @@ function render(time=performance.now()){
  const started=renderer.render({tiles:renderTiles,highPrecision,encodingMin,encodingMax,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:activeElevation(),highlightWidth:activeWidth(),emphasis:hovering||$('highlight').checked,edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure&&quiet&&!byteUploadsPending,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
+   viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
    const minLocked=locks.min,maxLocked=locks.max;
    if(!minLocked&&!maxLocked){exposureTargets.min=lo;exposureTargets.max=Math.max(lo+1/256,hi);}
    else if(!minLocked)exposureTargets.min=Math.min(lo,max-1/256);
@@ -156,12 +176,21 @@ function render(time=performance.now()){
    if(highPrecision)retargetExposure(now);else{if(!locks.min)exposureTweens.min.start(min,exposureTargets.min,now);if(!locks.max)exposureTweens.max.start(max,exposureTargets.max,now);}controls();requestRender();
   }else if(exposureDirty)requestRender();
  }});
- if(started)exposureDirty=false;if(easing||edgeTransition.active(time))requestRender();
+ if(started)exposureDirty=false;if(easing||domainEasing||edgeTransition.active(time))requestRender();
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext])ctx.configure({device,format,alphaMode:'opaque'});}
  $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext);
  const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');controls();highlightLabel();new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
-function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=`${locked?'Unlock':'Lock'} ${id==='min'?'minimum':'maximum'} elevation`;button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=label;$(id).closest('.slider-control').classList.toggle('is-locked',locked);if(locked){exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);}}
+function setControlExpansion(id,open){const element=$(id);if(element.dataset.open===String(open))return;element.dataset.open=String(open);element.inert=!open;element.setAttribute('aria-hidden',String(!open));}
+function syncColorRangeMode(){const automatic=!locks.min&&!locks.max;$('auto-color-range').checked=automatic;setControlExpansion('elevation-range-controls',!automatic);}
+function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=`${locked?'Unlock':'Lock'} ${id==='min'?'minimum':'maximum'} elevation`;button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=`${locked?'Resume':'Pause'} automatic ${id==='min'?'minimum':'maximum'} elevation adjustment`;$(id).closest('.slider-control').classList.toggle('is-locked',locked);if(locked){exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);}syncColorRangeMode();}
+$('auto-color-range').addEventListener('change',()=>{
+ const automatic=$('auto-color-range').checked;
+ advanceExposure(performance.now());exposureConfig++;
+ setLocked('min',!automatic);setLocked('max',!automatic);
+ invalidateTerrain();controls();requestRender();
+});
+$('auto-slider-range').addEventListener('change',()=>{retargetSliderDomain();if($('auto-slider-range').checked)invalidateTerrain();requestRender();});
 for(const id of ['min','max']){
  $(id).addEventListener('input',()=>{
   if(id==='min'){min=Math.min(Number($('min').value),max-1);exposureTargets.max=Math.max(exposureTargets.max,min+1/256);}else{max=Math.max(Number($('max').value),min+1);exposureTargets.min=Math.min(exposureTargets.min,max-1/256);}
@@ -178,28 +207,48 @@ $('high-precision').addEventListener('change',()=>{
 $('water').addEventListener('change',()=>{exposureConfig++;invalidateTerrain();requestRender();});
 $('edges').addEventListener('change',()=>{edgeTransition.retarget($('edges').checked?1:0,performance.now());requestRender();});
 const meters=value=>value.toLocaleString(undefined,{maximumFractionDigits:3})+' m';
-function activeElevation(){return hovering&&previewElevation!==null?previewElevation:pinnedElevation??elevationAt(.5,min,max);}
+function activeElevation(){return hovering&&previewElevation!==null?previewElevation:highlightElevationLocked?(pinnedElevation??elevationAt(.5,min,max)):elevationAt(highlightPosition,min,max);}
+function selectHighlightElevation(elevation){pinnedElevation=elevation;highlightPosition=(elevation-min)/(max-min);}
 function activeWidth(){return lockedHighlightWidth??defaultHighlightWidth(min,max,highlightFraction);}
-function initializeHighlight(){if(pinnedElevation===null)pinnedElevation=elevationAt(.5,min,max);}
+function initializeHighlight(){if(pinnedElevation===null)selectHighlightElevation(elevationAt(.5,min,max));}
 function highlightLabel(){
  if(hovering)previewElevation=elevationAt(hoverPosition,min,max);
  const elevation=activeElevation(),halfWidth=activeWidth(),active=hovering||$('highlight').checked;
  legend.setAttribute('aria-valuemin',Math.min(min,elevation));legend.setAttribute('aria-valuemax',Math.max(max,elevation));legend.setAttribute('aria-valuenow',elevation);legend.setAttribute('aria-valuetext',meters(elevation));
- $('highlight-value').textContent=`${meters(elevation)} · ${hovering?'preview':$('highlight').checked?'pinned':pinnedElevation===null?'not selected':'off'}`;
+ $('highlight-value').textContent=meters(elevation);
  $('highlight-value').dataset.elevation=elevation;
- $('highlight-band').textContent=active?`${meters(elevation-halfWidth)} to ${meters(elevation+halfWidth)}${elevation<min||elevation>max?' · center outside scale':''}`:'Hover to preview · click to pin an elevation';
- const hoverLabel=$('legend-hover');hoverLabel.hidden=!hovering;hoverLabel.style.setProperty('--position',hoverPosition*100);$('legend-hover-value').textContent=meters(elevation);
+ const hoverLabel=$('legend-hover');hoverLabel.hidden=!active;
+ hoverLabel.style.setProperty('--position',Math.max(0,Math.min(1,(elevation-min)/(max-min)))*100);
+ // Clamp the text itself, rather than a fixed-width box, to the color bar.
+ if(active)hoverLabel.style.setProperty('--label-width',`${$('highlight-value').getBoundingClientRect().width}px`);
+ // Keep endpoint readings unless they collide with the selected elevation text.
+ const centerBounds=active?$('highlight-value').getBoundingClientRect():null;
+ for(const id of ['legend-min','legend-max']){
+  const endpoint=$(id),bounds=endpoint.getBoundingClientRect();
+  endpoint.style.visibility=centerBounds&&bounds.right+6>centerBounds.left&&bounds.left-6<centerBounds.right?'hidden':'';
+ }
+
+ setControlExpansion('highlight-panel',active);
  $('highlight-controls').disabled=!active;const elevationControl=$('highlight-elevation');elevationControl.value=elevation;
  const widthControl=$('highlight-width');widthControl.min=Math.min((max-min)*.000001,halfWidth);widthControl.max=Math.max(max-min,halfWidth);widthControl.value=halfWidth;syncNumbers();
 }
-function previewHighlight(event){const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;highlightLabel();requestRender();}
+function previewHighlight(event){if(!hovering&&!$('highlight').checked){highlightPreviewOnly=true;$('highlight').checked=true;}const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;highlightLabel();requestRender();}
 legend.addEventListener('pointerenter',previewHighlight);legend.addEventListener('pointermove',previewHighlight);
-legend.addEventListener('pointerdown',event=>{legend.setPointerCapture(event.pointerId);previewHighlight(event);pinnedElevation=previewElevation;$('highlight').checked=true;});
-legend.addEventListener('pointerup',event=>{previewHighlight(event);pinnedElevation=previewElevation;if(event.pointerType!=='mouse'){hovering=false;highlightLabel();requestRender();}});
-for(const event of ['pointerleave','pointercancel'])legend.addEventListener(event,()=>{hovering=false;highlightLabel();requestRender();});
-$('highlight').addEventListener('change',()=>{if($('highlight').checked)initializeHighlight();hovering=false;highlightLabel();requestRender();});
-$('highlight-elevation').addEventListener('input',()=>{pinnedElevation=Number($('highlight-elevation').value);hovering=false;highlightLabel();requestRender();});
-$('highlight-width').addEventListener('input',()=>{const value=Number($('highlight-width').value);if(lockedHighlightWidth!==null)lockedHighlightWidth=value;else highlightFraction=value/(max-min);highlightLabel();requestRender();});
+legend.addEventListener('pointerdown',event=>{legend.setPointerCapture(event.pointerId);previewHighlight(event);selectHighlightElevation(previewElevation);highlightPreviewOnly=false;$('highlight').checked=true;});
+legend.addEventListener('pointerup',event=>{previewHighlight(event);selectHighlightElevation(previewElevation);if(event.pointerType!=='mouse'){hovering=false;highlightLabel();requestRender();}});
+function endHighlightPreview(){hovering=false;if(highlightPreviewOnly)$('highlight').checked=false;highlightPreviewOnly=false;highlightLabel();requestRender();}
+for(const event of ['pointerleave','pointercancel'])legend.addEventListener(event,endHighlightPreview);
+$('highlight').addEventListener('change',()=>{highlightPreviewOnly=false;if($('highlight').checked)initializeHighlight();hovering=false;highlightLabel();requestRender();});
+$('highlight-elevation').addEventListener('input',()=>{selectHighlightElevation(Number($('highlight-elevation').value));hovering=false;highlightLabel();requestRender();});
+$('highlight-elevation-lock').addEventListener('click',()=>{
+ const elevation=activeElevation();highlightElevationLocked=!highlightElevationLocked;
+ selectHighlightElevation(elevation);hovering=false;
+ const button=$('highlight-elevation-lock'),label=`${highlightElevationLocked?'Unlock':'Lock'} highlight elevation`;
+ button.setAttribute('aria-pressed',highlightElevationLocked);button.setAttribute('aria-label',label);button.title=label;
+ button.closest('.slider-control').classList.toggle('is-locked',highlightElevationLocked);
+ highlightLabel();requestRender();
+});
+$('highlight-width').addEventListener('input' ,()=>{const value=Number($('highlight-width').value);if(lockedHighlightWidth!==null)lockedHighlightWidth=value;else highlightFraction=value/(max-min);highlightLabel();requestRender();});
 $('highlight-width-lock').addEventListener('click',()=>{
  const width=activeWidth(),locked=lockedHighlightWidth===null;
  lockedHighlightWidth=locked?width:null;
@@ -210,11 +259,12 @@ $('highlight-width-lock').addEventListener('click',()=>{
  highlightLabel();requestRender();
 });
 legend.addEventListener('keydown',event=>{
- if(event.key==='Escape'){$('highlight').checked=false;hovering=false;}
+ if(event.key==='Escape'){highlightPreviewOnly=false;$('highlight').checked=false;hovering=false;}
  else if(['ArrowLeft','ArrowRight','Home','End','Enter',' '].includes(event.key)){
-  initializeHighlight();const step=(max-min)*.01;
-  if(event.key==='ArrowLeft')pinnedElevation-=step;if(event.key==='ArrowRight')pinnedElevation+=step;if(event.key==='Home')pinnedElevation=min;if(event.key==='End')pinnedElevation=max;
-  $('highlight').checked=true;hovering=false;
+  initializeHighlight();const step=(max-min)*.01;let elevation=activeElevation();
+  if(event.key==='ArrowLeft')elevation-=step;if(event.key==='ArrowRight')elevation+=step;if(event.key==='Home')elevation=min;if(event.key==='End')elevation=max;
+  selectHighlightElevation(elevation);
+  highlightPreviewOnly=false;$('highlight').checked=true;hovering=false;
  }else return;event.preventDefault();highlightLabel();requestRender();
 });
 $('palette').addEventListener('change',requestRender);
@@ -223,7 +273,7 @@ $('palette-flip').addEventListener('click',()=>{const button=$('palette-flip');b
 const sliderIds=['min','max','highlight-elevation','highlight-width'];
 function syncNumbers(){for(const id of sliderIds){const range=$(id),number=$(id+'-number');if(!number)continue;number.min=range.min;number.max=range.max;number.disabled=range.disabled||Boolean(range.closest('fieldset')?.disabled);if(document.activeElement!==number)number.value=String(Number(Number(range.value).toPrecision(6)));}}
 for(const id of sliderIds){const range=$(id),number=$(id+'-number');number.addEventListener('input',()=>{if(number.value===''||!Number.isFinite(number.valueAsNumber))return;range.value=Math.min(Number(range.max),Math.max(Number(range.min),number.valueAsNumber));range.dispatchEvent(new Event('input'));});number.addEventListener('change',()=>{number.value=range.value;});}
-for(const button of document.querySelectorAll('[data-step-slider]'))button.addEventListener('click',()=>{const range=$(button.dataset.stepSlider),step=range.step==='any'?1:Number(range.step);range.value=Number(range.value)+Number(button.dataset.stepDir)*step;range.dispatchEvent(new Event('input'));});
+for(const button of document.querySelectorAll('[data-step-slider]'))setupRepeatButton(button,()=>{const range=$(button.dataset.stepSlider),step=range.step==='any'?1:Number(range.step);range.value=Number(range.value)+Number(button.dataset.stepDir)*step;range.dispatchEvent(new Event('input'));});
 const panel=$('map-panel');
 function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;updateView();}
 $('fullscreen').addEventListener('click',async()=>{
@@ -299,7 +349,11 @@ function showProbe(point,positionId,elevationId){
  elevation.textContent=sample?.elevation!=null?`${meters(sample.elevation)}${sample.water?' · water':''}`:sample?'No elevation data':'Loading elevation…';
 }
 function updateProbe(){
- showProbe(cursorPoint(),'position','cursor-elevation');
+ const point=cursorPoint();
+ showProbe(point,'position','cursor-elevation');
+ $('cursor-readout').hidden=!point;
+ $('pinned-readout').hidden=!pinnedProbe;
+ $('canvas-probe').hidden=!point&&!pinnedProbe;
  showProbe(pinnedProbe,'pinned-position','pinned-elevation');
  $('probe-unpin').hidden=!pinnedProbe;
  const marker=$('location-pin');marker.classList.toggle('grayscale',Number($('palette').value)===0);const screen=projectProbe(pinnedProbe,view,width,height,sphereZoom,isSphere());
