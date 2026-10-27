@@ -172,3 +172,6 @@ aside .control-heading>label{flex:1;min-width:0}
 aside .control-heading>.value-edit{flex:0 0 auto}
 aside .control-heading>.lock-button{flex:0 0 22px}
 @media(pointer:coarse){aside .control-heading>.lock-button{flex-basis:26px}}
+
+.canvas-probe .probe-heading[hidden]{display:none}
+.stage{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}

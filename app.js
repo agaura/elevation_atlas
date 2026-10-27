@@ -322,7 +322,7 @@ function startMomentum(){
 function snapshot(){const pts=[...pointers.values()];const center={x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length};return {...center,distance:pts.length>1?Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y):0};}
 canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;stopMomentum();stopNavigation();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture=snapshot();lastMove=performance.now();});
 canvas.addEventListener('pointermove',e=>{
- cursor={x:e.clientX,y:e.clientY,inside:true};requestProbeUpdate();
+ cursor={x:e.clientX,y:e.clientY,inside:e.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();
  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const next=snapshot(),s=256*2**view.zoom,now=performance.now(),dt=Math.max(1,now-lastMove),dx=next.x-gesture.x,dy=next.y-gesture.y;
  panBy(dx,dy);
  if(pointers.size===1){const mix=1-Math.exp(-dt/25);velocityX+=(Math.max(-2.5,Math.min(2.5,dx/dt))-velocityX)*mix;velocityY+=(Math.max(-2.5,Math.min(2.5,dy/dt))-velocityY)*mix;}else velocityX=velocityY=0;
@@ -349,7 +349,8 @@ function showProbe(point,positionId,elevationId){
  elevation.textContent=sample?.elevation!=null?`${meters(sample.elevation)}${sample.water?' · water':''}`:sample?'No elevation data':'Loading elevation…';
 }
 function updateProbe(){
- const point=cursorPoint();
+ const point=matchMedia('(any-hover: hover)').matches?cursorPoint():null;
+ $('probe-status').closest('.probe-heading').hidden=!pinnedProbe;
  showProbe(point,'position','cursor-elevation');
  $('cursor-readout').hidden=!point;
  $('pinned-readout').hidden=!pinnedProbe;
@@ -364,11 +365,11 @@ function updateProbe(){
 setupCanvasGestures(canvas,{
  stop:stopMomentum,
  zoom(x,y){stopMomentum();stopNavigation();const r=canvas.getBoundingClientRect();zoomAt(1,x-r.left-width/2,y-r.top-height/2);},
- pin(x,y){stopMomentum();stopNavigation();cursor={x,y,inside:true};const point=cursorPoint();if(point){pinnedProbe=point;requestProbeUpdate();}}
+ pin(x,y){stopMomentum();stopNavigation();cursor={x,y,inside:true};const point=cursorPoint();cursor.inside=matchMedia('(any-hover: hover)').matches;if(point){pinnedProbe=point;requestProbeUpdate();}}
 });
 $('probe-unpin').addEventListener('click',()=>{pinnedProbe=null;requestProbeUpdate();});
 
-canvas.addEventListener('pointerenter',event=>{cursor={x:event.clientX,y:event.clientY,inside:true};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
+canvas.addEventListener('pointerenter',event=>{cursor={x:event.clientX,y:event.clientY,inside:event.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
 const keyAction=code=>({ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',Equal:'in',NumpadAdd:'in',Minus:'out',NumpadSubtract:'out'})[code];
 function stopNavigation(){cancelAnimationFrame(navigationFrame);navigationFrame=0;heldKeys.clear();tapUntil.clear();navX=navY=navZoom=0;}
 function navigationTick(time){

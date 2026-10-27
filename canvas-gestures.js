@@ -7,7 +7,7 @@ export function setupCanvasGestures(canvas,{zoom,pin,stop}){
   if(e.pointerType!=='mouse')lastTouch=performance.now();
   if(press){cancel();lastTap=null;return;}
   press={id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now(),type:e.pointerType,held:false};
-  hold=setTimeout(()=>{hold=0;if(!press)return;press.held=true;lastTap=null;pin(press.x,press.y);},550);
+  if(e.pointerType==='touch')hold=setTimeout(()=>{hold=0;if(!press)return;press.held=true;lastTap=null;pin(press.x,press.y);},550);
  });
  canvas.addEventListener('pointermove',e=>{if(press?.id===e.pointerId&&Math.hypot(e.clientX-press.x,e.clientY-press.y)>8){cancel();lastTap=null;}});
  canvas.addEventListener('pointerup',e=>{
@@ -21,7 +21,15 @@ export function setupCanvasGestures(canvas,{zoom,pin,stop}){
  });
  for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{cancel();});
  canvas.addEventListener('dblclick',e=>{e.preventDefault();if(performance.now()-lastTouch>1000)zoom(e.clientX,e.clientY);});
- canvas.addEventListener('contextmenu',e=>e.preventDefault());
+ canvas.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  if(e.pointerType==='touch'||performance.now()-lastTouch<1000)return;
+  cancel();lastTap=null;stop();pin(e.clientX,e.clientY);
+ });
+ canvas.addEventListener('selectstart',e=>e.preventDefault());
+ canvas.addEventListener('dragstart',e=>e.preventDefault());
+ // Cancel iOS's native long-press selection without affecting pointer gestures.
+ canvas.addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
  window.addEventListener('blur',()=>{cancel();lastTap=null;});
  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancel();lastTap=null;}});
 }
