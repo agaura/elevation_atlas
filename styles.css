@@ -49,7 +49,7 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 
 #location-pin.grayscale{stroke:#eaf2fa}#location-pin.grayscale circle{fill:#eaf2fa}
 
-.precision-toggle{margin:0 0 4px}
+
 
 #map:focus,#map:focus-visible{outline:none}#map{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 

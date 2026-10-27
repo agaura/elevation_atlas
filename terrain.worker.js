@@ -1,4 +1,3 @@
-import {buildExposureIndex} from './precision.js';
 import {decode,merge,wrap} from './terrain.js';
 const controllers=new Map();
 async function imageData(url,signal,retry){const response=await fetch(url,{signal,cache:retry?'reload':'default'});if(!response.ok){const e=Error(`Tile HTTP ${response.status}`);e.status=response.status;throw e;}const bitmap=await createImageBitmap(await response.blob(),{colorSpaceConversion:'none',premultiplyAlpha:'none'});const canvas=new OffscreenCanvas(bitmap.width,bitmap.height),ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0);bitmap.close();return {size:canvas.width,data:ctx.getImageData(0,0,canvas.width,canvas.height).data};}
@@ -12,4 +11,4 @@ self.onmessage=async({data})=>{if(data.cancel){controllers.get(data.id)?.abort()
  if(![a,b,c,d].every(Number.isFinite)||(src===sea&&![a,b,c,d].every(v=>v<0)))return nearest;
  return (a*(1-fx)+b*fx)*(1-fy)+(c*(1-fx)+d*fx)*fy;
  }for(let y=0;y<size;y++)for(let x=0;x<size;x++){const l=sample(land,x,y),s=sample(sea,x,y),i=(y*size+x)*2;values[i]=merge(l,s);// Keep water classification for the removal toggle, but use the elevation provider’s texel spacing.
-values[i+1]=(Number.isFinite(s)&&Math.round(s)>=2?1:-1)*(s<0?sea.factor:land.factor);}if(!controller.signal.aborted){const exposureIndex=buildExposureIndex(values,size);self.postMessage({id,size,values,exposureIndex,overzoomed:land.factor>1||sea.factor>1},[values.buffer,...exposureIndex.levels.map(level=>level.buffer)]);}}catch(error){self.postMessage({id,error:error.message});}finally{controller.abort();controllers.delete(id);}};
+values[i+1]=(Number.isFinite(s)&&Math.round(s)>=2?1:-1)*(s<0?sea.factor:land.factor);}if(!controller.signal.aborted){self.postMessage({id,size,values,overzoomed:land.factor>1||sea.factor>1},[values.buffer]);}}catch(error){self.postMessage({id,error:error.message});}finally{controller.abort();controllers.delete(id);}};
