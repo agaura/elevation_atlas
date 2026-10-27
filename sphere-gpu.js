@@ -1,4 +1,8 @@
-const shader=`struct Out{@builtin(position) position:vec4f}
+import {SOURCE_GRADIENT_WGSL} from './terrain-gradient.js';
+const shader=SOURCE_GRADIENT_WGSL+`
+fn sourceSize()->vec2i{return vec2i(textureDimensions(atlas));}
+fn sourceValue(coord:vec2i,layer:i32)->vec4f{return textureLoad(atlas,coord,layer,0);}
+struct Out{@builtin(position) position:vec4f}
 @vertex fn full(@builtin(vertex_index)i:u32)->Out{let a=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));var o:Out;o.position=vec4f(a[i],0,1);return o;}
 struct Camera{right:vec4f,up:vec4f,front:vec4f,view:vec4f,lookup:vec4f,origin:vec4f}
 @group(0) @binding(0) var atlas:texture_2d_array<f32>;
@@ -53,8 +57,9 @@ fn localAngle(y:f32,x:f32)->f32{
  if(!(center.x>=-40000&&center.x<=40000)||(camera.view.w>.5&&center.y<0.)){return vec2f(-1e30,1);}
  let a=valid(textureLoad(atlas,clamp(base,vec2i(0),limit),layer,0),center);let b=valid(textureLoad(atlas,clamp(base+vec2i(1,0),vec2i(0),limit),layer,0),center);
  let c=valid(textureLoad(atlas,clamp(base+vec2i(0,1),vec2i(0),limit),layer,0),center);let d=valid(textureLoad(atlas,clamp(base+vec2i(1,1),vec2i(0),limit),layer,0),center);
- let footprint=6.28318530718*camera.view.z*cos(lat)/(f32(dims.x)*exp2(level))*abs(center.y);
- return vec2f(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),select(max(1.,footprint),0.,level==0.&&camera.lookup.z>0.));
+ var edge = -1.;
+ if(camera.lookup.w>.5&&!(level==0.&&camera.lookup.z>0.)){edge=sourceEdge(p,center.y,layer);}
+ return vec2f(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),edge);
 }`;
 export async function createSpherePass(device){
  const format='rg32float';
@@ -67,7 +72,7 @@ export async function createSpherePass(device){
  const module=device.createShaderModule({code});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));
  const pipeline=await device.createRenderPipelineAsync({layout:device.createPipelineLayout({bindGroupLayouts:[layout]}),vertex:{module,entryPoint:'full'},fragment:{module,entryPoint:'height',targets:[{format}]},primitive:{topology:'triangle-list'}});
  const uniform=device.createBuffer({size:96,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});let atlases=[],capacities=[],slots=[],resident=new Map(),versions=new Map(),tileSize=0,pageBuffer,pageBytes=0;
- return {clear(){for(const atlas of atlases)atlas?.destroy();atlases=[];capacities=[];slots=[];resident.clear();versions.clear();},draw(encoder,target,{camera,tiles,cache,noOcean}){
+ return {clear(){for(const atlas of atlases)atlas?.destroy();atlases=[];capacities=[];slots=[];resident.clear();versions.clear();},draw(encoder,target,{camera,tiles,cache,noOcean,edges}){
  const ready=tiles.map(t=>({t,e:cache.get(t.key)})).filter(({e})=>e?.state==='ready'&&e.texture);
  if(ready.length>device.limits.maxTextureArrayLayers)throw Error('Globe tile count exceeds GPU texture array limit.');
  const size=ready[0]?.e.size||tileSize||512;
@@ -85,7 +90,7 @@ export async function createSpherePass(device){
  for(const {e} of ready){let slot=resident.get(e);if(slot===undefined){slot=slots.findIndex(value=>!value);if(slot<0)slot=slots.length;slots[slot]=e;resident.set(e,slot);versions.delete(e);}if(versions.get(e)!==e.textureVersion||!versions.has(e)){const page=slot%8,layer=Math.floor(slot/8);ensurePage(page,layer+1);encoder.copyTextureToTexture({texture:e.texture},{texture:atlases[page],origin:[0,0,layer]},[size,size,1]);versions.set(e,e.textureVersion);}}
  const tableSize=2**Math.ceil(Math.log2(Math.max(4,ready.length*4))),table=new Uint32Array(tableSize*4);let maxZ=0;
  for(let i=0;i<ready.length;i++){const {x,y,z}=ready[i].t;maxZ=Math.max(maxZ,z);let slot=(Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791))&(tableSize-1);while(table[slot*4+3])slot=(slot+1)&(tableSize-1);table.set([x,y,z,resident.get(ready[i].e)+1],slot*4);}
- if(pageBytes<table.byteLength){pageBuffer?.destroy();pageBytes=table.byteLength;pageBuffer=device.createBuffer({size:pageBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});}device.queue.writeBuffer(pageBuffer,0,table);const n=2**maxZ,origin=(camera.center??[.5,.5]).map(value=>value*n),base=origin.map(Math.floor);device.queue.writeBuffer(uniform,0,new Float32Array([...camera.right,0,...camera.up,0,...camera.front,0,camera.width,camera.height,camera.radius,noOcean?1:0,maxZ,tableSize-1,Math.max(0,...tiles.map(t=>t.z)),0,...base,origin[0]-base[0],origin[1]-base[1]]));
+ if(pageBytes<table.byteLength){pageBuffer?.destroy();pageBytes=table.byteLength;pageBuffer=device.createBuffer({size:pageBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});}device.queue.writeBuffer(pageBuffer,0,table);const n=2**maxZ,origin=(camera.center??[.5,.5]).map(value=>value*n),base=origin.map(Math.floor);device.queue.writeBuffer(uniform,0,new Float32Array([...camera.right,0,...camera.up,0,...camera.front,0,camera.width,camera.height,camera.radius,noOcean?1:0,maxZ,tableSize-1,Math.max(0,...tiles.map(t=>t.z)),edges?1:0,...base,origin[0]-base[0],origin[1]-base[1]]));
  const group=device.createBindGroup({layout,entries:[{binding:0,resource:atlases[0].createView({dimension:'2d-array'})},...Array.from({length:7},(_,i)=>({binding:i+3,resource:(atlases[i+1]??atlases[0]).createView({dimension:'2d-array'})})),{binding:1,resource:{buffer:pageBuffer}},{binding:2,resource:{buffer:uniform}}]});const pass=encoder.beginRenderPass({colorAttachments:[{view:target,clearValue:{r:-1e30,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(pipeline);pass.setBindGroup(0,group);pass.draw(3);pass.end();if(retired.length)queueMicrotask(()=>device.queue.onSubmittedWorkDone().then(()=>{for(const atlas of retired)atlas.destroy();}));
  }};
 }

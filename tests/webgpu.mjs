@@ -128,7 +128,7 @@ try{
  assert.deepEqual(result.all,[-50,1500]);assert.deepEqual(result.land,[-50,900]); // ocean column is excluded, negative land survives.
  assert.notEqual(result.off,result.shifted,'slider range must immediately recolor the existing height texture');
  assert.notEqual(result.smooth[0],result.smooth[1],'overzoomed heights interpolate between source texels');
- assert.ok(result.on>result.off,'overzoomed source-aware footprint highlights the terrain slope away from pixel boundaries');assert.deepEqual(result.errors,[]);assert.deepEqual(errors,[]);
+ assert.ok(result.on>result.off,'source-space gradients highlight overzoomed slopes away from pixel boundaries');assert.deepEqual(result.errors,[]);assert.deepEqual(errors,[]);
  console.log('PASS shared elevation highlight bands in all palettes');
  console.log('PASS GPU reduction, classified ocean masking, negative land, immediate uniform recoloring, source-aware Sobel and interpolated overzoom, and zero-edge path',result);
  await page.waitForFunction(()=>document.querySelector('#coverage').textContent!=='—',null,{timeout:30000});
