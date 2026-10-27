@@ -215,8 +215,11 @@ function highlightLabel(){
  const widthControl=$('highlight-width');widthControl.min=Math.min((max-min)*.000001,halfWidth);widthControl.max=Math.max(max-min,halfWidth);widthControl.value=halfWidth;syncNumbers();
 }
 function previewHighlight(event){if(!hovering&&!$('highlight').checked){highlightPreviewOnly=true;$('highlight').checked=true;}const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;highlightLabel();requestRender();}
+// Keep iOS long presses on the color bar inside our pointer interaction.
+for(const type of ['contextmenu','selectstart','dragstart'])legend.addEventListener(type,event=>event.preventDefault());
+legend.addEventListener('touchstart',event=>event.preventDefault(),{passive:false});
 legend.addEventListener('pointerenter',previewHighlight);legend.addEventListener('pointermove',previewHighlight);
-legend.addEventListener('pointerdown',event=>{legend.setPointerCapture(event.pointerId);previewHighlight(event);selectHighlightElevation(previewElevation);highlightPreviewOnly=false;$('highlight').checked=true;});
+legend.addEventListener('pointerdown',event=>{if(event.pointerType!=='mouse')event.preventDefault();legend.setPointerCapture(event.pointerId);previewHighlight(event);selectHighlightElevation(previewElevation);highlightPreviewOnly=false;$('highlight').checked=true;});
 legend.addEventListener('pointerup',event=>{previewHighlight(event);selectHighlightElevation(previewElevation);if(event.pointerType!=='mouse'){hovering=false;highlightLabel();requestRender();}});
 function endHighlightPreview(){hovering=false;if(highlightPreviewOnly)$('highlight').checked=false;highlightPreviewOnly=false;highlightLabel();requestRender();}
 for(const event of ['pointerleave','pointercancel'])legend.addEventListener(event,endHighlightPreview);

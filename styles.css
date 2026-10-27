@@ -51,7 +51,7 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 
 
 
-#map:focus,#map:focus-visible{outline:none}#map{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+#map:focus,#map:focus-visible{outline:none}#map,#legend,.legend-wrap,.ends{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 
 /* Minimal sidebar: full-row hit areas, quiet helpers, and brighter live values. */
 aside{--helper:#8390a0;--field-bg:#19232f;--field-hover:#223144;gap:10px;background:transparent}
