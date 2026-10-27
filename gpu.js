@@ -51,7 +51,7 @@ if(p.range.z<.5&&emphasis){let base=linearP3ToOKLab(decodeSRGB(c));let peak=line
 if(p.range.z>.5){var lab:vec3f;switch u32(p.range.z){
 ${COLOR_MAPS.filter(map=>map.shader).map(map=>`case ${map.id}u:{lab=${map.shader}(colorT,p.effects.x,weight,p.range.w,emphasis);}`).join('\n')}
 default:{lab=colorMapThermal(colorT,p.effects.x,weight,p.range.w,emphasis);}}c=max(oklabToP3(lab),vec3f(0));}
-if(!legend&&validTerrain&&p.effects.z>0.&&textureLoad(terrain,coord,0).g>0.){let edgeCenter=(elevation-p.range.x)/max(p.range.y-p.range.x,.00001);let edge=sobel(coord,edgeCenter,textureLoad(terrain,coord,0).g);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(.5,5.5,pow(edge,.75)),.5,4.),p.effects.z);scale=min(scale,decodeSRGBComponent(3.95)/max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
+if(!legend&&validTerrain&&p.effects.z>0.&&textureLoad(terrain,coord,0).g>0.){let edgeCenter=(elevation-p.range.x)/max(p.range.y-p.range.x,.00001);let edge=sobel(coord,edgeCenter,textureLoad(terrain,coord,0).g);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(.5,5.5,pow(edge,.75)),.5,4.),p.effects.z);scale=min(scale,8./max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
 if(!legend&&!validTerrain){c=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);}
 if(!legend&&p.highlight.w>.5){
  let mask=textureLoad(mapMask,coord,0).rgb;
