@@ -84,3 +84,13 @@ Elevation and Highlight controls expand/collapse with a short slide transition (
 Auto Slider Range appears with the manual elevation controls and defaults on. Slider domains follow native visible elevation bounds independently of locked color limits; disabling it eases the domains back to −12,000…9,000 m over 500 ms. Domains expand to retain selected values outside the current view, so native range-input clamping cannot silently change locked numbers. All slider locks sit beside their numeric editors.
 
 `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/terrain-gradient-webgpu.mjs` checks source-grid Sobel values against a CPU reference through fractional pans near zoom 5.984, multiple DPRs/zooms, tile boundaries, globe motion, water/nodata masks, previews, and off/on transitions. Flat source UVs are calculated from device-pixel positions to avoid subpixel rasterizer snapping.
+
+## HDR image downloads
+
+The header download button saves the current GPU-rendered view as an HDR AVIF at the canvas's actual device-pixel dimensions. It captures a fresh `rgba16float` target before presentation, so it also avoids precision loss from an SDR canvas-format fallback. Terrain, palette/highlights, and GPU-rendered roads/labels are included; sidebar, legend, DOM pin marker, and other UI overlays are excluded.
+
+The export worker converts the actual render gamut into P3-D65 RGB with ST 2084 PQ, using reference white of 203 nits. AVIF uses 12-bit full-range identity-matrix 4:4:4 coding at quality 100: compression is lossless for the quantized PQ samples, with no chroma subsampling, image resizing, tone mapping, or SDR conversion. As with any fixed-bit-depth HDR format, conversion to 12-bit PQ introduces quantization; PQ represents channel levels up to 10,000 nits. Actual display brightness depends on the viewer/display. Both AVIF container and AV1 sequence-header color descriptions are set consistently (CICP 12/16/0).
+
+The pinned `@jsquash/avif` 2.1.1 encoder and its license notices are in `vendor/avif`. Encoder assets load only on download, and the worker is terminated afterward to release its memory. Encoding stays entirely on the device, without a server or cross-origin isolation. Export status appears on the canvas while the app remains usable. HDR AVIF decoding/display requires a compatible viewer; an SDR display/viewer may tone-map it.
+
+`PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node tests/hdr-export-webgpu.mjs` exercises actual downloads in flat/sphere views at DPR 2 and independently verifies dimensions, 12-bit output, P3/PQ metadata, and pixel samples above reference white with the browser AVIF decoder.

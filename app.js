@@ -167,7 +167,7 @@ function render(time=performance.now()){
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext])ctx.configure({device,format,alphaMode:'opaque'});}
  $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext);
- const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');controls();highlightLabel();new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
+ const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');controls();highlightLabel();downloadButtons.forEach(button=>{button.disabled=false;});new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
 function setControlExpansion(id,open){const element=$(id);if(element.dataset.open===String(open))return;element.dataset.open=String(open);element.inert=!open;element.setAttribute('aria-hidden',String(!open));}
 function syncColorRangeMode(){const automatic=!locks.min&&!locks.max;$('auto-color-range').checked=automatic;setControlExpansion('elevation-range-controls',!automatic);}
 function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=`${locked?'Unlock':'Lock'} ${id==='min'?'minimum':'maximum'} elevation`;button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=`${locked?'Resume':'Pause'} automatic ${id==='min'?'minimum':'maximum'} elevation adjustment`;$(id).closest('.slider-control').classList.toggle('is-locked',locked);if(locked){exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);}syncColorRangeMode();}
@@ -259,8 +259,39 @@ const sliderIds=['min','max','highlight-elevation','highlight-width'];
 function syncNumbers(){for(const id of sliderIds){const range=$(id),number=$(id+'-number');if(!number)continue;number.min=range.min;number.max=range.max;number.disabled=range.disabled||Boolean(range.closest('fieldset')?.disabled);if(document.activeElement!==number)number.value=String(Number(Number(range.value).toPrecision(6)));}}
 for(const id of sliderIds){const range=$(id),number=$(id+'-number');number.addEventListener('input',()=>{if(number.value===''||!Number.isFinite(number.valueAsNumber))return;range.value=Math.min(Number(range.max),Math.max(Number(range.min),number.valueAsNumber));range.dispatchEvent(new Event('input'));});number.addEventListener('change',()=>{number.value=range.value;});}
 for(const button of document.querySelectorAll('[data-step-slider]'))setupRepeatButton(button,()=>{const range=$(button.dataset.stepSlider),step=range.step==='any'?1:Number(range.step);range.value=Number(range.value)+Number(button.dataset.stepDir)*step;range.dispatchEvent(new Event('input'));});
+const downloadButtons=[$('download'),$('fullscreen-download')];
+let exportBusy=false,exportMessageTimer=0;
+async function downloadImage(){
+ if(!renderer||!metadata||exportBusy)return;
+ exportBusy=true;clearTimeout(exportMessageTimer);
+ const status=$('export-status');
+ downloadButtons.forEach(button=>{button.disabled=true;button.setAttribute('aria-busy','true');});status.textContent='Capturing full-resolution HDR…';
+ let worker;
+ try{
+  stopMomentum();stopNavigation();
+  const framePromise=renderer.capture();requestRender();
+  const frame=await framePromise;
+  const paletteName=$('palette').selectedOptions[0].textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const filename=`elevation-atlas-${paletteName}-${frame.width}x${frame.height}-hdr.avif`;
+  worker=new Worker(new URL('./image-export.worker.js',import.meta.url),{type:'module'});
+  const encoded=await new Promise((resolve,reject)=>{
+   worker.onmessage=({data})=>{if(data.status){status.textContent=data.status;return;}if(data.error)reject(new Error(data.error));else resolve(data);};
+   worker.onerror=event=>reject(new Error(event.message||'The image encoder could not load.'));
+   worker.postMessage(frame,[frame.pixels.buffer]);
+  });
+  const url=URL.createObjectURL(new Blob([encoded.bytes],{type:'image/avif'}));
+  const link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  status.textContent=encoded.clipped?'HDR AVIF saved · some colors exceeded the PQ range':'HDR AVIF saved';
+ }catch(error){status.textContent='Export failed: '+error.message;console.error(error);}
+ finally{
+  worker?.terminate();exportBusy=false;downloadButtons.forEach(button=>{button.disabled=false;button.removeAttribute('aria-busy');});
+  exportMessageTimer=setTimeout(()=>{status.textContent='';},8000);
+ }
+}
+for(const button of downloadButtons)button.addEventListener('click',downloadImage);
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}

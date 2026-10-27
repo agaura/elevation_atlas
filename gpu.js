@@ -1,3 +1,4 @@
+import {captureTexture} from './frame-capture.js';
 import {SOURCE_GRADIENT_WGSL} from './terrain-gradient.js';
 import {createSpherePass} from './sphere-gpu.js';
 import {createMapPass} from './map-gpu.js';
@@ -73,14 +74,19 @@ export async function createRenderer(device,format,context,legendContext){
  const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}}]});const pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
  async function make(code,vertex,fragment,target){const module=device.createShaderModule({code});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));return device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:vertex},fragment:{module,entryPoint:fragment,targets:[{format:target}]},primitive:{topology:'triangle-list'}});}
  const heightPipeline=await make(heightShader,'tile','height','rg32float'),colorPipeline=await make(colorShader,'full','color',format);
+ const exportPipeline=format==='rgba16float'?colorPipeline:await make(colorShader,'full','color','rgba16float');
  const spherePass=await createSpherePass(device),mapPass=await createMapPass(device);let gpuMapActive=false;
  const reducePipeline=await device.createComputePipelineAsync({layout:'auto',compute:{module:device.createShaderModule({code:reductionShader}),entryPoint:'reduce'}});
  let maskTexture=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),maskWidth=1,maskHeight=1,maskRevision=-1;
  let labelTexture=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),labelWidth=1,labelHeight=1;
- let screen,screenView,w=0,h=0,uniforms=[],reductionBusy=false,heightDirty=true,edgesAvailable=false;
+ let screen,screenView,w=0,h=0,uniforms=[],reductionBusy=false,heightDirty=true,edgesAvailable=false,captureRequest=null;
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
  function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array(data));return u.group;}
- return {invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,sphere=null,mapOverlay=null,reduce,onExposure}){
+ device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
+ return {capture(){
+  if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
+  return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
+ },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,sphere=null,mapOverlay=null,reduce,onExposure}){
  if(edges>0.&&!edgesAvailable)heightDirty=true;
  edgesAvailable=edges>0.;
  resize(canvas.width,canvas.height);
@@ -109,7 +115,23 @@ export async function createRenderer(device,format,context,legendContext){
  if(heightDirty){const pass=encoder.beginRenderPass({colorAttachments:[{view:screenView,clearValue:{r:-1e30,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(heightPipeline);for(const t of tiles){const e=cache.get(t.sourceKey??t.key);if(e?.state==='ready'){pass.setBindGroup(0,bind(e.texture,index++,[t.left*dpr,t.top*dpr,t.size*dpr,t.size*dpr,...tail.slice(0,12),...(t.uv??[0,0,1]),t.sourceKey?1:0]));pass.draw(6);}}pass.end();heightDirty=false;}
  // Fixed slots for presentation avoid rebuilding bind groups as tile count changes.
  for(const [ctx,isLegend,slot] of [[context,false,0],[legendContext,true,1]]){const pass=encoder.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});pass.setPipeline(colorPipeline);pass.setBindGroup(0,bind(screen,tiles.length+slot,[0,0,0,0,min,max,palette,hdr,isLegend?legend.width:w,isLegend?legend.height:h,isLegend?1:0,p3,selected,emphasis?1:0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,!isLegend&&mapOverlay?1:0]));pass.draw(3);pass.end();}
+ // Render an export-only float target, even if the visible canvas fell back to SDR.
+ // This captures the same frame before presentation, without canvas.toBlob().
+ let exportReadback,exportTexture,exportRequest;
+ if(captureRequest){
+  exportRequest=captureRequest;captureRequest=null;
+  try{
+   exportTexture=device.createTexture({size:[w,h],format:'rgba16float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});
+   const pass=encoder.beginRenderPass({colorAttachments:[{view:exportTexture.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+   pass.setPipeline(exportPipeline);
+   pass.setBindGroup(0,bind(screen,tiles.length+2,[0,0,0,0,min,max,palette,hdr,w,h,0,p3,selected,emphasis?1:0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,mapOverlay?1:0]));
+   pass.draw(3);pass.end();
+   exportReadback=captureTexture(device,encoder,exportTexture);
+  }catch(error){exportTexture?.destroy();exportRequest.reject(error);}
+ }
  let readback,output,groups;if(reduce&&!reductionBusy){groups=Math.ceil(w*h/4096);output=device.createBuffer({size:groups*8,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});readback=device.createBuffer({size:groups*8,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});const pass=encoder.beginComputePass();pass.setPipeline(reducePipeline);pass.setBindGroup(0,device.createBindGroup({layout:reducePipeline.getBindGroupLayout(0),entries:[{binding:0,resource:screenView},{binding:1,resource:{buffer:output}}]}));pass.dispatchWorkgroups(groups);pass.end();encoder.copyBufferToBuffer(output,0,readback,0,groups*8);reductionBusy=true;}
- device.queue.submit([encoder.finish()]);if(readback){readback.mapAsync(GPUMapMode.READ).then(()=>{const values=new Float32Array(readback.getMappedRange());let lo=1e30,hi=-1e30;for(let i=0;i<values.length;i+=2){lo=Math.min(lo,values[i]);hi=Math.max(hi,values[i+1]);}readback.unmap();reductionBusy=false;onExposure(lo,hi);}).catch(error=>{reductionBusy=false;console.warn('Exposure readback failed',error);}).finally(()=>{readback.destroy();output.destroy();});return true;}return false;
+ device.queue.submit([encoder.finish()]);
+ if(exportReadback)exportReadback.read().then(result=>exportRequest.resolve({...result,colorSpace:p3?'display-p3':'srgb'}),error=>exportRequest.reject(error)).finally(()=>exportTexture.destroy());
+ if(readback){readback.mapAsync(GPUMapMode.READ).then(()=>{const values=new Float32Array(readback.getMappedRange());let lo=1e30,hi=-1e30;for(let i=0;i<values.length;i+=2){lo=Math.min(lo,values[i]);hi=Math.max(hi,values[i+1]);}readback.unmap();reductionBusy=false;onExposure(lo,hi);}).catch(error=>{reductionBusy=false;console.warn('Exposure readback failed',error);}).finally(()=>{readback.destroy();output.destroy();});return true;}return false;
  }};
 }

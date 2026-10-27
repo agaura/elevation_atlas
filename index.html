@@ -20,7 +20,9 @@
             </div>
             <div class="header-right">
                 <div class="map-actions"><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
-                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><button id="fullscreen"
+                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
+                    </button><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
                         title="Enter fullscreen"><svg class="expand-icon" viewBox="0 0 20 20" aria-hidden="true">
                             <path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" />
@@ -188,6 +190,12 @@
                     <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
                     <circle cx="12" cy="11" r="3.5" />
                 </svg>
+                <button id="fullscreen-download" class="icon-button" type="button" aria-label="Download HDR AVIF"
+                    title="Download full-resolution HDR AVIF" hidden disabled>
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"/>
+                    </svg>
+                </button>
                 <button id="fullscreen-exit" class="icon-button" type="button" aria-label="Exit fullscreen"
                     title="Exit fullscreen" hidden>
                     <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -195,7 +203,7 @@
                     </svg>
                 </button>
                 <div class="canvas-readouts">
-                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div></div>
+                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div></div>
                     <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
                         <div id="cursor-readout" class="probe-readout" hidden>
                             <div class="probe-heading"><span id="probe-status">Cursor Location</span></div>

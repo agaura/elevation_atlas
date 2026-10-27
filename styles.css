@@ -21,8 +21,9 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 
 .palette-picker{display:flex;align-items:center;gap:6px;margin-top:4px}.palette-picker #palette{flex:1;min-width:0;margin-top:0}.palette-picker .icon-button{flex:0 0 27px;width:27px;height:27px}.palette-picker .icon-button svg{width:18px;height:18px;flex:0 0 18px;stroke-width:1.5}.palette-picker .icon-button[aria-pressed=true]{background:#25303b;color:var(--fg)}
 
-#fullscreen-exit{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;background:#101318d9;border-color:var(--border);color:var(--fg)}
-#fullscreen-exit[hidden],#probe-unpin[hidden]{display:none}
+#fullscreen-download,#fullscreen-exit{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;background:#101318d9;border-color:var(--border);color:var(--fg)}
+#fullscreen-download{right:52px}
+#fullscreen-download[hidden],#fullscreen-exit[hidden],#probe-unpin[hidden]{display:none}
 .probe-heading{height:18px;display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--muted);font:8px monospace}
 #probe-unpin{height:16px;line-height:12px;padding:0 4px;border:1px solid var(--border);background:transparent;color:var(--accent);font:9px monospace;cursor:pointer}
 #probe-unpin:focus-visible{outline:1px solid var(--accent)}
@@ -33,7 +34,7 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 .map-toggle{margin:0 0 5px}#map-status{font:8px/1.4 monospace;color:var(--muted);margin:3px 0}#map-status:empty{display:none}
 
 .canvas-status{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);display:grid;gap:4px;pointer-events:none}
-.canvas-status>#message,.canvas-status>#map-status{position:static;max-width:none;margin:0;padding:7px 9px;background:#101318d9;color:var(--fg);font:9px/1.4 monospace}
+.canvas-status>#message,.canvas-status>#map-status,.canvas-status>#export-status{position:static;max-width:none;margin:0;padding:7px 9px;background:#101318d9;color:var(--fg);font:9px/1.4 monospace}
 .canvas-status>div:empty{display:none}
 #location-search{position:relative;margin:0;z-index:3}.search-row{display:flex;align-items:center;border-bottom:1px solid var(--border);gap:6px}
 #location-query{width:100%;min-width:0;border:0;background:transparent;color:var(--fg);font:11px monospace;padding:8px 0;outline:0}#location-query::placeholder{color:var(--muted)}.search-row:focus-within{border-color:var(--accent)}
@@ -174,3 +175,5 @@ aside .control-heading>.lock-button{flex:0 0 22px}
 
 .canvas-probe .probe-heading[hidden]{display:none}
 .stage{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+
+#download:disabled,#fullscreen-download:disabled{opacity:.4;cursor:progress}
