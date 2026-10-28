@@ -1,3 +1,4 @@
+import {retryDelay} from './request-policy.js';
 import {visibleTiles,wrap} from './terrain.js';
 import {sphereTiles} from './sphere.js';
 import {buildMapGeometry} from './map-geometry.js';
@@ -100,7 +101,7 @@ export class MapOverlay{
  }
  loaded(data){
   const entry=this.pending.get(data.id);if(!entry)return;this.pending.delete(data.id);this.active--;
-  if(data.error){entry.state='failed';entry.failures=(entry.failures||0)+1;entry.retry=performance.now()+Math.min(30000,1000*2**Math.min(entry.failures-1,5));}
+  if(data.error){entry.state='failed';entry.failures=(entry.failures||0)+1;entry.retry=performance.now()+retryDelay({retryAfterMs:data.retryAfterMs||0},entry.failures);}
   else{const geometry=data.geometry||buildMapGeometry(data.layers,entry.tile.z);Object.assign(entry,{state:'ready',layers:data.layers,geometry,bytes:data.bytes*6+geometry.segments.byteLength*2+[...geometry.grid.values()].reduce((sum,indices)=>sum+indices.byteLength,0)});this.dirty=true;}
   this.scheduleRetry();this.onChange();this.pump();
  }
@@ -111,7 +112,7 @@ export class MapOverlay{
   if(failed.length)this.retryTimer=setTimeout(()=>{this.dirty=true;this.onChange();},Math.max(0,Math.min(...failed.map(e=>e.retry))-performance.now()));
  }
  pump(){
-  while(this.enabled&&this.active<4&&this.queue.length){const entry=this.queue.shift();if(entry.state!=='queued')continue;entry.state='loading';const id=++this.serial;this.pending.set(id,entry);this.active++;const url=this.metadata.tiles[0].replace('{z}',entry.tile.z).replace('{x}',wrap(entry.tile.x,2**entry.tile.z)).replace('{y}',entry.tile.y);this.worker.postMessage({id,url,z:entry.tile.z});}
+  while(!globalThis.document?.hidden&&this.enabled&&this.active<4&&this.queue.length){const entry=this.queue.shift();if(entry.state!=='queued')continue;entry.state='loading';const id=++this.serial;this.pending.set(id,entry);this.active++;const url=this.metadata.tiles[0].replace('{z}',entry.tile.z).replace('{x}',wrap(entry.tile.x,2**entry.tile.z)).replace('{y}',entry.tile.y);this.worker.postMessage({id,url,z:entry.tile.z});}
  }
  draw({view,width,height,dpr,camera}){
   if(!this.enabled||!this.metadata)return null;

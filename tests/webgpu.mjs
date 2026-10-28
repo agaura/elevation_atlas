@@ -15,7 +15,7 @@ try{
   async function tileBlob(heights){const c=new OffscreenCanvas(4,4),ctx=c.getContext('2d'),image=ctx.createImageData(4,4);for(let i=0;i<16;i++){const encoded=Math.round((heights[i%4]+32768)*256);image.data.set([encoded>>>16&255,encoded>>>8&255,encoded&255,255],i*4);}ctx.putImageData(image,0,0);return URL.createObjectURL(await c.convertToBlob({type:'image/png'}));}
   const landURL=await tileBlob([600,610,620,630]),seaURL=await tileBlob([0,1,2,-15]);
   const worker=new Worker('/terrain.worker.js',{type:'module'});
-  const shoreline=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Worker fixture timeout')),10000);worker.onmessage=({data})=>{clearTimeout(timer);data.error?reject(Error(data.error)):resolve(Array.from(data.values.slice(0,8)));};worker.onerror=reject;worker.postMessage({id:1,t:{x:0,y:0,z:0},metadata:{land:{tiles:[landURL]},sea:{tiles:[seaURL]}}});});
+  const shoreline=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Worker fixture timeout')),10000);worker.onmessage=({data})=>{clearTimeout(timer);data.error?reject(Error(data.error)):resolve(Array.from(data.values.slice(0,8)));};worker.onerror=reject;worker.postMessage({id:1,t:{x:0,y:0,z:18},metadata:{land:{tiles:[landURL]},sea:{tiles:[seaURL]}}});});
   worker.terminate();URL.revokeObjectURL(landURL);URL.revokeObjectURL(seaURL);
   const {createRenderer}=await import('/gpu.js');const adapter=await navigator.gpu.requestAdapter(),device=await adapter.requestDevice();const errors=[];device.addEventListener('uncapturederror',e=>errors.push(e.error.message));
   const canvas=document.createElement('canvas'),legend=document.createElement('canvas');canvas.width=canvas.height=32;legend.width=32;legend.height=2;

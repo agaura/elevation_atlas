@@ -83,7 +83,7 @@ export async function createRenderer(device,format,context,legendContext){
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
  function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array(data));return u.group;}
  device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
- return {capture(){
+ return {memoryBytes(cache){return w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
  },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,sphere=null,mapOverlay=null,reduce,onExposure}){

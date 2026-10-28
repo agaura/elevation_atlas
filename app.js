@@ -1,3 +1,6 @@
+import {trimTerrain} from './terrain-cache.js';
+import {retryDelay} from './request-policy.js';
+import {gebcoSampling} from './gebco.js';
 import {setupRepeatButton} from './repeat-button.js';
 import {setupCanvasGestures} from './canvas-gestures.js';
 import {uploadTerrainTexture} from './terrain-gpu.js';
@@ -22,45 +25,87 @@ const fallback={land:{tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],ti
 const mapOverlay=new MapOverlay(requestRender,message=>{$('map-status').textContent=message;});
 function requestRender(){if(!frame)frame=requestAnimationFrame(time=>{frame=0;if(viewDirty){viewDirty=false;updateViewNow();}render(time);});}
 function controls(){applySliderDomain();for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
-function report(){const ready=tiles.filter(t=>!!cache.get(t.key)?.texture).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':'';}
+function reportGebco(){
+ if(!metadata)return;
+ const size=Math.max(metadata.land.tileSize||512,metadata.sea.tileSize||512),now=performance.now();
+ const eligible=[...new Map(tiles.filter(t=>!t.fallback&&gebcoSampling(t,size).useGebco).map(t=>[t.key,t])).values()];
+ let complete=0,loading=0,retrying=0;
+ for(const t of eligible){
+  const entry=cache.get(t.key);
+  if(entry?.oceanSource==='gebco')complete++;
+  else if(entry?.refineAbort&&!entry.refineAbort.signal.aborted)loading++;
+  else if((entry?.refineAfter||0)>now)retrying++;
+ }
+ const queued=eligible.length-complete-loading-retrying;
+ $('gebco-coverage').textContent=`${complete} / ${eligible.length}`;
+ $('gebco-status').textContent=!eligible.length?'Seascape Only':complete===eligible.length?'Complete':
+  [loading&&`${loading} Loading`,queued&&`${queued} Queued`,retrying&&`${retrying} Retrying`].filter(Boolean).join(' · ');
+}
+function report(){reportGebco();const ready=tiles.filter(t=>!!cache.get(t.key)?.texture).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':$('water').checked&&tiles.some(t=>cache.get(t.key)?.refineAbort)?'Refining ocean detail…':'';}
 const tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});
 let nextRequest=0;const pendingTiles=new Map();
-tileWorker.onmessage=({data})=>{const pending=pendingTiles.get(data.id);if(!pending)return;pendingTiles.delete(data.id);if(data.error)pending.reject(Error(data.error));else pending.resolve(data);};
+tileWorker.onmessage=({data})=>{const pending=pendingTiles.get(data.id);if(!pending)return;if(data.progress){pending.progress(data.timeout);return;}pendingTiles.delete(data.id);if(data.error)pending.reject(Object.assign(Error(data.error),{status:data.status,retryAfterMs:data.retryAfterMs||0}));else pending.resolve(data);};
 function invalidateTerrain(){exposureDirty=true;renderer?.invalidate();}
-// Retain native CPU data for probes, but release offscreen GPU copies promptly.
+// Keep recent CPU and GPU tiles under a shared allocation estimate. Mandatory
+// visible tiles can exceed the target; optional history is evicted first.
 const mobileBudget=matchMedia('(pointer: coarse)').matches;
-const cacheBudget=(mobileBudget?64:192)*1024*1024;
+const cacheBudget=(mobileBudget?256:512)*1024*1024;
 function trimTerrainCache(){
  const needed=new Set(['0/0/0',...tiles.map(t=>t.key),...flatRenderTiles(true).map(t=>t.sourceKey??t.key)]);
- let bytes=0;
- for(const [key,e] of cache){
-  if(!needed.has(key)&&e.texture){e.texture.destroy();delete e.texture;e.bytes=e.values.byteLength;}
-  bytes+=e.bytes||0;
- }
- if(bytes<=cacheBudget)return;
- for(const [key,e] of [...cache].sort((a,b)=>(a[1].used||0)-(b[1].used||0))){
-  if(bytes<=cacheBudget)break;
-  if(!needed.has(key)&&e.state==='ready'){bytes-=e.bytes||0;e.texture?.destroy();cache.delete(key);}
- }
+ trimTerrain(cache,needed,{budget:cacheBudget,gpuBudget:(mobileBudget?48:128)*1024*1024,extraBytes:renderer?.memoryBytes?.(cache)||0});
+}
+function requestTerrain(t,signal,oceanSource,retry=false,timeouts=0){
+ const id=++nextRequest;
+ return new Promise((resolve,reject)=>{
+  const cancel=()=>{tileWorker.postMessage({id,cancel:true});finish(Error('Tile cancelled'));};
+  const finish=(error,data)=>{clearTimeout(timer);signal.removeEventListener('abort',cancel);pendingTiles.delete(id);error?reject(error):resolve(data);};
+  const timeout=(oceanSource==='gebco')?10000:1000*2**Math.min(timeouts,3);
+  let timer;
+  const progress=(inactivityTimeout=timeout)=>{clearTimeout(timer);timer=setTimeout(()=>{tileWorker.postMessage({id,cancel:true});finish(new DOMException('Tile request timed out','TimeoutError'));},inactivityTimeout);};
+  progress();
+  pendingTiles.set(id,{resolve:data=>finish(null,{...data,oceanSource:data.oceanSource??oceanSource}),reject:finish,progress});
+  signal.addEventListener('abort',cancel,{once:true});
+  if(signal.aborted){cancel();return;}
+  tileWorker.postMessage({id,t,metadata,oceanSource,retry});
+ });
+}
+function applyTerrain(entry,decoded){
+ entry.texture?.destroy();delete entry.texture;
+ const {size,values,overzoomed,oceanSource='seascape'}=decoded;
+ Object.assign(entry,{size,values,overzoomed,oceanSource,state:'ready',bytes:values.byteLength});
+ trimTerrainCache();invalidateTerrain();
 }
 async function load(t,entry){
- const id=++nextRequest;
- const decoded=await new Promise((resolve,reject)=>{
-  const cancel=()=>{tileWorker.postMessage({id,cancel:true});finish(Error('Tile cancelled'));};
-  const finish=(error,data)=>{clearTimeout(timer);entry.abort.signal.removeEventListener('abort',cancel);pendingTiles.delete(id);error?reject(error):resolve(data);};
-  // Retry a stalled request after one second, then allow slower retries to
-  // finish rather than repeatedly discarding download/decode progress.
-  const timeout=1000*2**Math.min(entry.timeouts||0,3);
-  const timer=setTimeout(()=>{tileWorker.postMessage({id,cancel:true});finish(new DOMException('Tile request timed out','TimeoutError'));},timeout);
-  pendingTiles.set(id,{resolve:data=>finish(null,data),reject:finish});
-  entry.abort.signal.addEventListener('abort',cancel,{once:true});
-  tileWorker.postMessage({id,t,metadata,retry:entry.attempts>0});
- });
- if(entry.abort.signal.aborted)return;
- const {size,values,overzoomed}=decoded;
- Object.assign(entry,{size,values,overzoomed,state:'ready',bytes:values.byteLength});trimTerrainCache();invalidateTerrain();
+ const decoded=await requestTerrain(t,entry.abort.signal,'seascape',entry.attempts>0,entry.timeouts||0);
+ if(!entry.abort.signal.aborted)applyTerrain(entry,decoded);
 }
-function pump(){while(active<(mobileBudget?3:4)&&queue.length){
+// Refinements have their own single background slot. A slow GEBCO read never
+// occupies a foreground slot or hides an already usable Seascape tile.
+let refining=false,refinementTimer=0;
+function pumpRefinements(){
+ clearTimeout(refinementTimer);
+ if(document.hidden||refining||active||queue.length||!metadata)return;
+ const now=performance.now(),size=Math.max(metadata.land.tileSize||512,metadata.sea.tileSize||512);
+ const candidates=tiles.filter(t=>!t.fallback&&gebcoSampling(t,size).useGebco)
+  .map(t=>({t,entry:cache.get(t.key)}))
+  .filter(({entry})=>entry?.state==='ready'&&entry.oceanSource!=='gebco');
+ const candidate=candidates.find(({entry})=>(entry.refineAfter||0)<=now);
+ if(!candidate){
+  if(candidates.length)refinementTimer=setTimeout(pumpRefinements,Math.max(1,Math.min(...candidates.map(({entry})=>entry.refineAfter))-now));
+  return;
+ }
+ const {t,entry}=candidate,controller=new AbortController();
+ refining=true;entry.refineAbort=controller;report();
+ requestTerrain(t,controller.signal,'gebco').then(decoded=>{
+  if(controller.signal.aborted||cache.get(t.key)!==entry)return;
+  applyTerrain(entry,decoded);requestRender();
+ }).catch(error=>{
+  if(!controller.signal.aborted){entry.refineAttempts=(entry.refineAttempts||0)+1;entry.refineAfter=performance.now()+retryDelay(error,entry.refineAttempts,Math.random,5000);console.warn('Ocean refinement',t.key,error);}
+ }).finally(()=>{
+  delete entry.refineAbort;refining=false;report();pumpRefinements();
+ });
+}
+function pump(){if(document.hidden)return;while(active<(mobileBudget?3:4)&&queue.length){
  const t=queue.shift(),entry=cache.get(t.key);if(!entry||entry.state!=='queued')continue;
  entry.state='loading';active++;
  load(t,entry).catch(e=>{if(!entry.abort.signal.aborted){
@@ -72,10 +117,10 @@ function pump(){while(active<(mobileBudget?3:4)&&queue.length){
    entry.abort.signal.removeEventListener('abort',cancelRetry);
    if(cache.get(t.key)!==entry||entry.abort.signal.aborted)return;
    entry.state='queued';queue.push(t);report();pump();
-  },e.name==='TimeoutError'?0:Math.min(30000,1000*2**Math.min(entry.attempts-1,5)));
+  },retryDelay(e,entry.attempts));
   entry.abort.signal.addEventListener('abort',cancelRetry,{once:true});
  }}).finally(()=>{active--;report();requestRender();pump();});
-}}
+}pumpRefinements();}
 
 // Safari rate-limits history writes. URL bookkeeping must never stop rendering.
 let viewUrlTimer=0,lastViewUrlWrite=-Infinity,pendingViewUrl=null;
@@ -103,8 +148,8 @@ function updateView(){viewDirty=true;requestRender();}
 function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=window.devicePixelRatio||1;const rect=canvas.getBoundingClientRect();width=rect.width;height=rect.height;constrain();const pw=Math.max(1,Math.round(width*dpr)),ph=Math.max(1,Math.round(height*dpr));if(Math.max(pw,ph)>device.limits.maxTextureDimension2D){$('message').textContent='Viewport exceeds this GPU’s texture-size limit. Reduce window size.';return;}if(canvas.width!==pw)canvas.width=pw;if(canvas.height!==ph)canvas.height=ph;const lw=Math.max(1,Math.round(legend.clientWidth*dpr)),lh=Math.max(1,Math.round(legend.clientHeight*dpr));if(legend.width!==lw)legend.width=lw;if(legend.height!==lh)legend.height=lh;
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
  globeCamera=isSphere()?sphereCamera(view,width,height,dpr,sphereZoom):null;
- const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles];if(!requested.some(t=>t.z===0))requested.unshift({z:0,x:0,y:0,key:'0/0/0'});const needed=new Set(requested.map(t=>t.key));queue=[];
- for(const [key,entry] of cache){if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}
+ const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});const needed=new Set(requested.map(t=>t.key));queue=[];
+ for(const [key,entry] of cache){if(!needed.has(key))entry.refineAbort?.abort();if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}
  for(const t of requested){let entry=cache.get(t.key);if(!entry){entry={state:'queued',abort:new AbortController()};cache.set(t.key,entry);queue.push(t);}else if(entry.state==='queued'&&!queue.some(q=>q.key===t.key))queue.push(t);entry.used=performance.now();}
  trimTerrainCache();
  $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;syncViewUrl(`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
@@ -186,7 +231,7 @@ for(const id of ['min','max']){
  });
  $(id+'-lock').addEventListener('click',()=>{setLocked(id,!locks[id]);exposureDirty=true;controls();requestRender();});
 }
-$('water').addEventListener('change',()=>{exposureConfig++;invalidateTerrain();requestRender();});
+$('water').addEventListener('change',()=>{report();exposureConfig++;invalidateTerrain();requestRender();});
 $('edges').addEventListener('change',()=>{edgeTransition.retarget($('edges').checked?1:0,performance.now());requestRender();});
 const meters=value=>value.toLocaleString(undefined,{maximumFractionDigits:3})+' m';
 function activeElevation(){return hovering&&previewElevation!==null?previewElevation:highlightElevationLocked?(pinnedElevation??elevationAt(.5,min,max)):elevationAt(highlightPosition,min,max);}
@@ -406,3 +451,11 @@ window.addEventListener('keyup',event=>{const key=heldKeys.get(event.code);if(!k
 document.addEventListener('focusin',event=>{if(event.target.closest?.('input,textarea,select,button,[contenteditable="true"]'))stopNavigation();});
 window.addEventListener('blur',stopNavigation);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopNavigation();});
 init().catch(e=>{$('message').textContent=e.message;console.error(e);});
+
+// Finish existing foreground transfers, but start no new work in a hidden tab.
+// Shared GEBCO ranges already downloading may finish and populate the cache.
+document.addEventListener('visibilitychange',()=>{
+ tileWorker.postMessage({pauseBackground:document.hidden});
+ if(document.hidden){clearTimeout(refinementTimer);for(const entry of cache.values())entry.refineAbort?.abort();}
+ else {mapOverlay.dirty=true;mapOverlay.pump();pump();requestRender();}
+});
