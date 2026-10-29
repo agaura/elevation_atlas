@@ -177,3 +177,71 @@ aside .control-heading>.lock-button{flex:0 0 22px}
 .stage{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 
 #download:disabled,#fullscreen-download:disabled{opacity:.4;cursor:progress}
+
+/* Match the palette rotate control across header and fullscreen actions. */
+#download,#fullscreen,#fullscreen-download,#fullscreen-exit{
+ border:0;
+ background:transparent;
+ color:var(--muted);
+}
+#download,#fullscreen{width:26px;height:26px}
+#download svg,#fullscreen svg,#fullscreen-download svg,#fullscreen-exit svg{stroke-width:1.5}
+#download:hover,#fullscreen:hover,#fullscreen-download:hover,#fullscreen-exit:hover{
+ color:var(--fg);
+ background:#8fc5ff0b;
+}
+#download:focus-visible,#fullscreen:focus-visible,#fullscreen-download:focus-visible,#fullscreen-exit:focus-visible{
+ outline:1px solid var(--accent);
+ outline-offset:2px;
+}
+
+/* Instrument-style sliders: fine rails and square, high-contrast cursors. */
+aside input[type=range]{
+ -webkit-appearance:none;
+ appearance:none;
+ height:20px;
+ padding:0;
+ border:0;
+ border-radius:0;
+ background:transparent;
+ color:var(--accent);
+}
+aside input[type=range]::-webkit-slider-runnable-track{
+ height:2px;
+ border:0;
+ border-radius:0;
+ background:#46515f;
+}
+aside input[type=range]::-moz-range-track{
+ height:2px;
+ border:0;
+ border-radius:0;
+ background:#46515f;
+}
+aside input[type=range]::-moz-range-progress{height:2px;background:#46515f}
+aside input[type=range]::-webkit-slider-thumb{
+ -webkit-appearance:none;
+ width:7px;
+ height:14px;
+ margin-top:-6px;
+ border:1px solid var(--accent);
+ border-radius:0;
+ background:#182c40;
+ box-shadow:inset 0 0 0 1px var(--bg);
+}
+aside input[type=range]::-moz-range-thumb{
+ width:5px;
+ height:12px;
+ border:1px solid var(--accent);
+ border-radius:0;
+ background:#182c40;
+ box-shadow:inset 0 0 0 1px var(--bg);
+}
+aside input[type=range]:hover::-webkit-slider-thumb,
+aside input[type=range]:active::-webkit-slider-thumb{background:var(--accent)}
+aside input[type=range]:hover::-moz-range-thumb,
+aside input[type=range]:active::-moz-range-thumb{background:var(--accent)}
+aside input[type=range]:focus-visible{outline:1px solid var(--accent);outline-offset:1px}
+aside input[type=range]:disabled{cursor:default;color:var(--muted)}
+aside input[type=range]:disabled::-webkit-slider-thumb{border-color:var(--muted);background:var(--panel)}
+aside input[type=range]:disabled::-moz-range-thumb{border-color:var(--muted);background:var(--panel)}
