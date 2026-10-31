@@ -46,3 +46,13 @@ export function zoomSphereAt(view,width,height,oldZoom,newZoom,x,y){
 export function maximumSphereZoom(width,height,mapZoom){
  return Math.log2(256*2**mapZoom/(2*Math.PI*.46*Math.max(1,Math.min(width,height))));
 }
+
+// Match metres per CSS pixel at the view center across projections.
+export function sphereZoomFromMapZoom(mapZoom,y,width,height){
+ const cosLatitude=1/Math.cosh(Math.PI*(1-2*y));
+ const baseRadius=.46*Math.max(1,Math.min(width,height));
+ return mapZoom+Math.log2(256/(2*Math.PI*cosLatitude*baseRadius));
+}
+export function mapZoomFromSphereZoom(sphereZoom,y,width,height){
+ return sphereZoom-sphereZoomFromMapZoom(0,y,width,height);
+}

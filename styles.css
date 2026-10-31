@@ -249,3 +249,15 @@ aside input[type=range]:disabled::-moz-range-thumb{border-color:var(--muted);bac
 /* Keep fullscreen actions legible over terrain, like the coordinate readout. */
 #fullscreen-download,#fullscreen-exit{background:#101318d9;color:var(--fg)}
 #fullscreen-download:hover,#fullscreen-exit:hover{background:#1c2632ed;color:var(--accent)}
+
+/* Stack the active highlight readout beneath cursor/pinned coordinates. */
+.canvas-location-stack{display:flex;flex-direction:column;gap:8px;flex:0 1 248px;min-width:0;max-width:100%;margin-left:auto}
+.canvas-location-stack[hidden]{display:none}
+.canvas-location-stack>.canvas-probe{flex:none;width:100%;margin-left:0}
+
+.keyboard-help{display:none;margin-bottom:10px}
+.keyboard-help p{color:var(--muted);line-height:1.65}
+.keyboard-help kbd{font:inherit;color:var(--fg)}
+@media(min-width:701px) and (hover:hover) and (pointer:fine){.keyboard-help{display:block}}
+
+#highlight-swatch{display:block;width:12px;height:12px;flex:none;pointer-events:none}

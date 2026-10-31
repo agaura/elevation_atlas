@@ -30,3 +30,17 @@ test('north and south rotation limits center the poles symmetrically',async()=>{
  assert.equal(panSphere(north,0,100,400).y,north.y);
  assert.equal(panSphere(south,0,-100,400).y,south.y);
 });
+
+
+test('projection zoom conversion preserves center scale and round-trips at all DPRs',async()=>{
+ const {sphereZoomFromMapZoom,mapZoomFromSphereZoom}=await import('../sphere.js');
+ for(const [width,height] of [[1000,800],[390,700],[1920,1080]])for(const y of [0,.2,.5,.8,1])for(const zoom of [3,8,16]){
+  const globeZoom=sphereZoomFromMapZoom(zoom,y,width,height);
+  assert.ok(Math.abs(mapZoomFromSphereZoom(globeZoom,y,width,height)-zoom)<1e-12);
+  for(const dpr of [1,2,3]){
+   const camera=sphereCamera({x:.5,y},width,height,dpr,globeZoom);
+   const flatScale=40075016.68557849/Math.cosh(Math.PI*(1-2*y))/(256*2**zoom*dpr);
+   assert.ok(Math.abs((6378137/camera.radius)/flatScale-1)<1e-12);
+  }
+ }
+});

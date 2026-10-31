@@ -22,6 +22,10 @@ Visit http://localhost:8080. No build step or API keys are required. WebGPU need
 - **Locations:** desktop hover shows coordinates and elevation. Right-click on desktop or press and hold on mobile to pin a location.
 - **Fullscreen and download:** use the canvas/header buttons. Downloads save the rendered terrain and map layers as HDR AVIF at full device-pixel resolution, excluding UI overlays. HDR viewing requires a compatible viewer and display.
 
+Keyboard shortcuts: **E** toggles edge highlighting, **H** toggles highlighting, **U** toggles water, **F** toggles fullscreen, **M** toggles map labels, and **O** toggles Flat/Sphere. With highlighting enabled, **, / .** lower/raise its elevation; hold **Shift** to adjust half-width instead. Hold a punctuation key for smooth, continuous adjustment.
+
+Hold **Shift** to preview highlight at the hovered elevation; release to restore the previous highlight. **Shift-click** keeps the selected elevation. Active highlight elevation and half-width appear below the canvas location readings.
+
 ## Data and credits
 
 - [Mapterhorn](https://mapterhorn.com/data-access/): land elevations; see [source attribution](https://mapterhorn.com/attribution).

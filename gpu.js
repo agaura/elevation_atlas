@@ -44,9 +44,10 @@ fn mapInk(color:vec3f)->vec3f{
 
 @fragment fn color(o:Out)->@location(0) vec4f{
 let coord=vec2i(o.position.xy);let legend=p.screen.z>.5;var t=o.uv.x;var elevation=mix(p.range.x,p.range.y,t);var validTerrain=true;
+if(p.screen.z>1.5){elevation=p.highlight.x;t=clamp((elevation-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}
 if(!legend){let value=textureLoad(terrain,coord,0).r;validTerrain=value>=-40000&&value<=40000;if(validTerrain){elevation=value;t=clamp((value-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}}
-let colorT=select(t,1.-t,p.highlight.z>.5);var c=vec3f(colorT);let emphasis=p.effects.y>.5;
-let weight=pow(max(0.,1.-abs(elevation-p.highlight.x)/max(p.highlight.y,.0000001)),2.);
+let colorT=select(t,1.-t,p.highlight.z>.5);var c=vec3f(colorT);let emphasis=p.effects.y>0.;
+let weight=pow(max(0.,1.-abs(elevation-p.highlight.x)/max(p.highlight.y,.0000001)),2.)*clamp(p.effects.y,0.,1.);
 if(p.range.z<.5&&emphasis){let base=linearP3ToOKLab(decodeSRGB(c));let peak=linearP3ToOKLab(vec3f(p.range.w));c=oklabToP3(mix(base,peak,weight));}
 if(p.range.z>.5){var lab:vec3f;switch u32(p.range.z){
 ${COLOR_MAPS.filter(map=>map.shader).map(map=>`case ${map.id}u:{lab=${map.shader}(colorT,p.effects.x,weight,p.range.w,emphasis);}`).join('\n')}
@@ -70,7 +71,7 @@ const reductionShader=`@group(0) @binding(0) var terrain:texture_2d<f32>;
 @group(0) @binding(1) var<storage,read_write> results:array<vec2f>;
 var<workgroup> lows:array<f32,256>;var<workgroup> highs:array<f32,256>;
 @compute @workgroup_size(256) fn reduce(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){let dims=textureDimensions(terrain);var lo=1e30;var hi=-1e30;for(var i=0u;i<16u;i++){let index=group.x*4096u+lane+i*256u;if(index<dims.x*dims.y){let v=textureLoad(terrain,vec2i(i32(index%dims.x),i32(index/dims.x)),0).r;if(v>=-40000&&v<=40000){lo=min(lo,v);hi=max(hi,v);}}}lows[lane]=lo;highs[lane]=hi;workgroupBarrier();for(var stride=128u;stride>0u;stride/=2u){if(lane<stride){lows[lane]=min(lows[lane],lows[lane+stride]);highs[lane]=max(highs[lane],highs[lane+stride]);}workgroupBarrier();}if(lane==0u){results[group.x]=vec2f(lows[0],highs[0]);}}`;
-export async function createRenderer(device,format,context,legendContext){
+export async function createRenderer(device,format,context,legendContext,swatchContext=null){
  const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}}]});const pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
  async function make(code,vertex,fragment,target){const module=device.createShaderModule({code});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));return device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:vertex},fragment:{module,entryPoint:fragment,targets:[{format:target}]},primitive:{topology:'triangle-list'}});}
  const heightPipeline=await make(heightShader,'tile','height','rg32float'),colorPipeline=await make(colorShader,'full','color',format);
@@ -110,11 +111,19 @@ export async function createRenderer(device,format,context,legendContext){
   device.queue.copyExternalImageToTexture({source:mapOverlay.canvas},{texture:maskTexture},[w,h]);maskRevision=mapOverlay.revision;
  }
  }
- let index=0;const tail=[min,max,palette,hdr,w,h,0,p3,selected,emphasis?1:0,edges,noOcean?1:0,selectedElevation,highlightWidth,0,0];
+ let index=0;const tail=[min,max,palette,hdr,w,h,0,p3,selected,Number(emphasis)||0,edges,noOcean?1:0,selectedElevation,highlightWidth,0,0];
  if(heightDirty&&sphere){spherePass.draw(encoder,screenView,{camera:sphere,tiles,cache,noOcean,edges:edges>0.});heightDirty=false;}
  if(heightDirty){const pass=encoder.beginRenderPass({colorAttachments:[{view:screenView,clearValue:{r:-1e30,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(heightPipeline);for(const t of tiles){const e=cache.get(t.sourceKey??t.key);if(e?.state==='ready'){pass.setBindGroup(0,bind(e.texture,index++,[t.left*dpr,t.top*dpr,t.size*dpr,t.size*dpr,...tail.slice(0,12),...(t.uv??[0,0,1]),t.sourceKey?1:0]));pass.draw(6);}}pass.end();heightDirty=false;}
  // Fixed slots for presentation avoid rebuilding bind groups as tile count changes.
- for(const [ctx,isLegend,slot] of [[context,false,0],[legendContext,true,1]]){const pass=encoder.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});pass.setPipeline(colorPipeline);pass.setBindGroup(0,bind(screen,tiles.length+slot,[0,0,0,0,min,max,palette,hdr,isLegend?legend.width:w,isLegend?legend.height:h,isLegend?1:0,p3,selected,emphasis?1:0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,!isLegend&&mapOverlay?1:0]));pass.draw(3);pass.end();}
+ for(const [ctx,isLegend,slot] of [[context,false,0],[legendContext,true,1]]){const pass=encoder.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});pass.setPipeline(colorPipeline);pass.setBindGroup(0,bind(screen,tiles.length+slot,[0,0,0,0,min,max,palette,hdr,isLegend?legend.width:w,isLegend?legend.height:h,isLegend?1:0,p3,selected,Number(emphasis)||0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,!isLegend&&mapOverlay?1:0]));pass.draw(3);pass.end();}
+ // A solid center-color preview uses the same HDR shader as the legend.
+ if(swatchContext&&Number(emphasis)>0){
+  const swatch=swatchContext.canvas;
+  const pass=encoder.beginRenderPass({colorAttachments:[{view:swatchContext.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+  pass.setPipeline(colorPipeline);
+  pass.setBindGroup(0,bind(screen,tiles.length+3,[0,0,0,0,min,max,palette,hdr,swatch.width,swatch.height,2,p3,selected,Number(emphasis)||0,0,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,0]));
+  pass.draw(3);pass.end();
+ }
  // Render an export-only float target, even if the visible canvas fell back to SDR.
  // This captures the same frame before presentation, without canvas.toBlob().
  let exportReadback,exportTexture,exportRequest;
@@ -124,7 +133,7 @@ export async function createRenderer(device,format,context,legendContext){
    exportTexture=device.createTexture({size:[w,h],format:'rgba16float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});
    const pass=encoder.beginRenderPass({colorAttachments:[{view:exportTexture.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
    pass.setPipeline(exportPipeline);
-   pass.setBindGroup(0,bind(screen,tiles.length+2,[0,0,0,0,min,max,palette,hdr,w,h,0,p3,selected,emphasis?1:0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,mapOverlay?1:0]));
+   pass.setBindGroup(0,bind(screen,tiles.length+2,[0,0,0,0,min,max,palette,hdr,w,h,0,p3,selected,Number(emphasis)||0,edges,noOcean?1:0,selectedElevation,highlightWidth,reversed?1:0,mapOverlay?1:0]));
    pass.draw(3);pass.end();
    exportReadback=captureTexture(device,encoder,exportTexture);
   }catch(error){exportTexture?.destroy();exportRequest.reject(error);}

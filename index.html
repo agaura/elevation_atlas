@@ -180,6 +180,13 @@
                 </details>
             </section>
             <footer>
+                <div class="keyboard-help" aria-label="Keyboard shortcuts">
+                    <div class="eyebrow">KEYBOARD</div>
+                    <p><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Pan · <kbd>+ −</kbd> Zoom<br>
+                        <kbd>E</kbd> Edges · <kbd>H</kbd> Highlight · <kbd>U</kbd> Water · <kbd>M</kbd> Map · <kbd>O</kbd> Sphere · <kbd>F</kbd> Fullscreen<br>
+                        <kbd>, .</kbd> Highlight elevation · <kbd>Shift + , .</kbd> Half-width<br>
+                        Hold <kbd>Shift</kbd> to preview highlight · <kbd>Shift-click</kbd> to keep</p>
+                </div>
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
                 <p><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
                         sources</a><br><a href="https://openwaters.io/charts/seascape#license" target="_blank"
@@ -208,19 +215,27 @@
                 </button>
                 <div class="canvas-readouts">
                     <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div></div>
-                    <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
-                        <div id="cursor-readout" class="probe-readout" hidden>
-                            <div class="probe-heading"><span id="probe-status">Cursor Location</span></div>
-                            <dl class="probe-values">
-                                <dt>Coordinates</dt><dd id="position">—</dd>
-                                <dt>Elevation</dt><dd id="cursor-elevation">—</dd>
-                            </dl>
+                    <div id="canvas-location-stack" class="canvas-location-stack" hidden>
+                        <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
+                            <div id="cursor-readout" class="probe-readout" hidden>
+                                <div class="probe-heading"><span id="probe-status">Cursor Location</span></div>
+                                <dl class="probe-values">
+                                    <dt>Coordinates</dt><dd id="position">—</dd>
+                                    <dt>Elevation</dt><dd id="cursor-elevation">—</dd>
+                                </dl>
+                            </div>
+                            <div id="pinned-readout" class="probe-readout" hidden>
+                                <div class="probe-heading"><span>Pinned Location</span><button id="probe-unpin" type="button" hidden>Unpin</button></div>
+                                <dl class="probe-values">
+                                    <dt>Coordinates</dt><dd id="pinned-position">—</dd>
+                                    <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
+                                </dl>
+                            </div>
                         </div>
-                        <div id="pinned-readout" class="probe-readout" hidden>
-                            <div class="probe-heading"><span>Pinned Location</span><button id="probe-unpin" type="button" hidden>Unpin</button></div>
+                        <div id="canvas-highlight" class="canvas-probe" role="group" aria-label="Highlight settings" hidden>
+                            <div class="probe-heading"><span>Highlight</span><canvas id="highlight-swatch" width="12" height="12" aria-label="Highlight center color"></canvas></div>
                             <dl class="probe-values">
-                                <dt>Coordinates</dt><dd id="pinned-position">—</dd>
-                                <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
+                                <dt>Elevation</dt><dd><span id="canvas-highlight-elevation">—</span> ± <span id="canvas-highlight-width">—</span></dd>
                             </dl>
                         </div>
                     </div>
