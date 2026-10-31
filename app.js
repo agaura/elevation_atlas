@@ -8,14 +8,14 @@ import {setupSearch,searchDestination} from './search.js';
 import {MapOverlay} from './map-overlay.js';
 import {probePosition,sampleProbe,projectProbe} from './probe.js';
 import {SineTransition,ExposureTransition} from './exposure.js';
-import {sphereCamera,sphereTiles,zoomSphereAt,maximumSphereZoom} from './sphere.js';
+import {sphereCamera,sphereTiles,zoomSphereAt,maximumSphereZoom,boundedSphereY,panSphere} from './sphere.js';
 import {elevationAt,defaultHighlightWidth} from './highlight.js';
 import {coastStep} from './motion.js';
 import {createRenderer} from './gpu.js';
 import {sourceZoom,visibleTiles,wrap,minimumMapZoom,boundedMapY,maximumMapZoom} from './terrain.js';
 const $=id=>document.getElementById(id), canvas=$('map'),legend=$('legend');
 const view={x:.5,y:.42,zoom:2};
-try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=Math.max(0,Math.min(1,saved[2]));}}catch{}
+try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=boundedSphereY(saved[2]);}}catch{}
 let device,context,legendContext,renderer,format,toneMapping,colorSpace='display-p3',tiles=[],cache=new Map(),active=0,queue=[],frame=0,dpr=1,width=1,height=1,min=-11000,max=8850,metadata;
 let sphereZoom=0,globeCamera=null;
 const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -355,7 +355,7 @@ window.addEventListener('keydown',event=>{if(event.key==='Escape')exitFullscreen
 function isSphere(){return $('projection').checked;}
 $('projection').addEventListener('change',()=>{exposureConfig++;stopMomentum();$('projection-label').textContent=isSphere()?'GLOBAL ELEVATION / SPHERE':'GLOBAL ELEVATION / WEB MERCATOR';updateView();});
 function panBy(dx,dy){lastViewMotion=performance.now();
- if(isSphere()){const radius=Math.min(width,height)*.46*2**sphereZoom;view.x-=dx/(2*Math.PI*radius);let lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))+dy/radius;lat=Math.max(-1.48442223,Math.min(1.48442223,lat));view.y=(1-Math.log(Math.tan(Math.PI/4+lat/2))/Math.PI)/2;}
+ if(isSphere()){const radius=Math.min(width,height)*.46*2**sphereZoom;Object.assign(view,panSphere(view,dx,dy,radius));}
  else{const scale=256*2**view.zoom;view.x-=dx/scale;view.y-=dy/scale;}
  const requestedY=view.y;constrain();return requestedY!==view.y;
 }
@@ -366,7 +366,7 @@ setupSearch(location=>{
  constrain();updateView();canvas.focus({preventScroll:true});
 });
 function zoomCeiling(){return maximumMapZoom(Object.values(metadata??fallback));}
-function constrain(){view.x=wrap(view.x,1);view.zoom=Math.max(minimumMapZoom(height),Math.min(zoomCeiling(),view.zoom));sphereZoom=Math.max(-1,Math.min(maximumSphereZoom(width,height,zoomCeiling()),sphereZoom));if(isSphere())view.y=Math.max(0,Math.min(1,view.y));else{view.y=boundedMapY(view.y,view.zoom,height);}}
+function constrain(){view.x=wrap(view.x,1);view.zoom=Math.max(minimumMapZoom(height),Math.min(zoomCeiling(),view.zoom));sphereZoom=Math.max(-1,Math.min(maximumSphereZoom(width,height,zoomCeiling()),sphereZoom));if(isSphere())view.y=boundedSphereY(view.y);else{view.y=boundedMapY(view.y,view.zoom,height);}}
 function zoomAt(delta,x,y){lastViewMotion=performance.now();if(isSphere()){const nextZoom=Math.max(-1,Math.min(maximumSphereZoom(width,height,zoomCeiling()),sphereZoom+delta)),anchor=zoomSphereAt(view,width,height,sphereZoom,nextZoom,x,y);view.x=anchor.x;view.y=anchor.y;sphereZoom=nextZoom;updateView();return;}const old=256*2**view.zoom;view.zoom=Math.max(minimumMapZoom(height),Math.min(zoomCeiling(),view.zoom+delta));const next=256*2**view.zoom;view.x+=x/old-x/next;view.y+=y/old-y/next;constrain();updateView();}
 canvas.addEventListener('wheel',e=>{stopMomentum();stopNavigation();e.preventDefault();const r=canvas.getBoundingClientRect();zoomAt(-e.deltaY*(e.deltaMode===1?.04:.004),e.clientX-r.left-width/2,e.clientY-r.top-height/2);},{passive:false});
 const pointers=new Map();let gesture,lastMove=0,velocityX=0,velocityY=0,momentumFrame=0;

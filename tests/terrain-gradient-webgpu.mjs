@@ -34,11 +34,11 @@ try{
   const planar=fixture((x,y)=>600+7*x+3*y);
   const coast=fixture(x=>x<64?600:9000,x=>x<64?1:-1),nodata=fixture(x=>x<64?600:1e30);
   const base={dpr:1,canvas,legend,min:0,max:2000,palette:1,hdr:2,p3:1,emphasis:false,edges:1,noOcean:false,reduce:false};
-  async function read(entry,{left=0,pixels=128,dpr=1,sphere=null,preview=false,edges=1,invalidate=true}={}){
+  async function read(entry,{left=0,pixels=128,dpr=1,sphere=null,preview=false,edges=1,noOcean=false,invalidate=true}={}){
    const tile={key:'0/0/0',z:0,x:0,y:0,left:left/dpr,top:left/dpr,size:pixels/dpr};
    if(preview){tile.sourceKey='0/0/0';tile.uv=[0,0,1];}
    if(invalidate)renderer.invalidate();
-   renderer.render({...base,dpr,edges,sphere,tiles:[tile],cache:new Map([['0/0/0',entry]])});
+   renderer.render({...base,dpr,edges,noOcean,sphere,tiles:[tile],cache:new Map([['0/0/0',entry]])});
    const buffer=device.createBuffer({size:64*512,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),encoder=device.createCommandEncoder();
    encoder.copyTextureToBuffer({texture:screen},{buffer,bytesPerRow:512},[64,64]);device.queue.submit([encoder.finish()]);
    await buffer.mapAsync(GPUMapMode.READ);const data=new Float32Array(buffer.getMappedRange()).slice();buffer.unmap();buffer.destroy();return data;
@@ -81,7 +81,7 @@ try{
    const data=await read(planar,{left,pixels:127});
    for(let y=0;y<64;y++)for(let x=0;x<64;x++)if(data[(y*64+x)*2]>=-40000)worstPlanarError=Math.max(worstPlanarError,Math.abs(data[(y*64+x)*2+1]-expectedSlope));
   }
-  for(const center of [[.5,.5],[.501,.5],[.5,.501]]){
+  for(const center of [[.5,.5],[.501,.5],[.5,.501],[.5,-2.5],[.5,3.5]]){
    const sphere=sphereCamera({x:center[0],y:center[1]},64,64,1,0),data=await read(planar,{sphere});
    for(let i=0;i<data.length;i+=2)if(data[i]>=-40000&&data[i]<=40000)worstPlanarError=Math.max(worstPlanarError,Math.abs(data[i+1]-expectedSlope));
   }
@@ -90,6 +90,12 @@ try{
    const data=await read(entry,{pixels:128,left:-32.5});
    for(let y=4;y<60;y++)for(let x=4;x<60;x++)if(data[(y*64+x)*2]>=-40000&&data[(y*64+x)*2]<=40000&&Math.abs(data[(y*64+x)*2+1])>.01)throw Error('Water/nodata generated a false edge');
   }
+  // A real slope parallel to a masked coast remains, but a comparison
+  // across its missing opposite side must not add a false normal component.
+  const slopedCoast=fixture((x,y)=>600+7*x+3*y,x=>x<64?1:-1);
+  const coastSlope=await read(slopedCoast,{pixels:128,noOcean:true});
+  const boundaryGradient=coastSlope[(32*64+63)*2+1];
+  if(Math.abs(boundaryGradient-18)>.02)throw Error('Masked slope gained a false cross-boundary gradient: '+boundaryGradient);
   const preview=await read(planar,{preview:true});if(preview[33]!==-1)throw Error('Parent preview edges must be suppressed');
   const disabled=await read(planar,{edges:0});if(disabled[33]!==-1)throw Error('Zero-strength height pass must skip gradients');
   const enabled=await read(planar,{edges:1,invalidate:false});if(Math.abs(enabled[33]-expectedSlope)>.02)throw Error('Enabling edges must refresh a cached height pass');

@@ -1,11 +1,13 @@
 // Shared by flat and globe height passes. Each supplies sourceSize() and
 // sourceValue(coord, layer) for its original, unresampled terrain texture.
 export const SOURCE_GRADIENT_WGSL = `
-fn gradientHeight(value: vec2f, center: vec2f) -> f32 {
-    if (!(value.x >= -40000. && value.x <= 40000.) || sign(value.y) != sign(center.y)) {
-        return center.x;
-    }
-    return value.x;
+// Missing sides do not define a slope. Replacing them with the center height
+// can create artificial diagonal Sobel differences along irregular masks.
+fn gradientDifference(a: vec2f, b: vec2f, center: vec2f) -> f32 {
+    let validA = a.x >= -40000. && a.x <= 40000. && sign(a.y) == sign(center.y);
+    let validB = b.x >= -40000. && b.x <= 40000. && sign(b.y) == sign(center.y);
+    if (!(validA && validB)) { return 0.; }
+    return b.x - a.x;
 }
 
 fn sourceEdge(xy: vec2f, referenceKind: f32, layer: i32) -> f32 {
@@ -32,17 +34,13 @@ fn sourceEdge(xy: vec2f, referenceKind: f32, layer: i32) -> f32 {
             if (!(center.x >= -40000. && center.x <= 40000.) || sign(center.y) != sign(referenceKind)) {
                 continue;
             }
-            let tl = gradientHeight(samples[index], center);
-            let tc = gradientHeight(samples[index + 1], center);
-            let tr = gradientHeight(samples[index + 2], center);
-            let ml = gradientHeight(samples[index + 4], center);
-            let mr = gradientHeight(samples[index + 6], center);
-            let bl = gradientHeight(samples[index + 8], center);
-            let bc = gradientHeight(samples[index + 9], center);
-            let br = gradientHeight(samples[index + 10], center);
             var gradient = vec2f(
-                -tl - 2. * ml - bl + tr + 2. * mr + br,
-                -tl - 2. * tc - tr + bl + 2. * bc + br
+                gradientDifference(samples[index], samples[index + 2], center)
+                + 2. * gradientDifference(samples[index + 4], samples[index + 6], center)
+                + gradientDifference(samples[index + 8], samples[index + 10], center),
+                gradientDifference(samples[index], samples[index + 8], center)
+                + 2. * gradientDifference(samples[index + 1], samples[index + 9], center)
+                + gradientDifference(samples[index + 2], samples[index + 10], center)
             );
 
             // One-sided derivatives preserve a planar slope at tile boundaries.

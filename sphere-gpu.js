@@ -41,9 +41,9 @@ fn localAngle(y:f32,x:f32)->f32{
  for(var z=i32(camera.lookup.x);z>=0;z--){
   let shift=u32(camera.lookup.x)-u32(z);let divisor=1u<<shift;
   let n=f32(1u<<u32(z));let relative=1./f32(divisor);
-  let origin=vec2u(camera.origin.xy);
+  let origin=vec2i(camera.origin.xy);
   let base=origin>>vec2u(shift);
-  let remainder=origin&vec2u(divisor-1u);
+  let remainder=origin-base*i32(divisor);
   let local=(vec2f(remainder)+camera.origin.zw)*relative+vec2f(deltaU,deltaV)*n;
   let address=vec2i(base)+vec2i(floor(local));let count=i32(n);
   if(address.y<0||address.y>=count){continue;}

@@ -1,4 +1,17 @@
 import {wrap} from './terrain.js';
+// Keep Mercator camera coordinates finite while centering either pole to
+// substantially less than a device pixel at ordinary globe scales.
+export const SPHERE_LATITUDE_LIMIT = Math.PI / 2 - 1e-8;
+export function sphereYAtLatitude(latitude) {
+ const lat=Math.max(-SPHERE_LATITUDE_LIMIT,Math.min(SPHERE_LATITUDE_LIMIT,latitude));
+ return .5-Math.asinh(Math.tan(lat))/(2*Math.PI);
+}
+const northY=sphereYAtLatitude(SPHERE_LATITUDE_LIMIT);
+export function boundedSphereY(y){return Math.max(northY,Math.min(1-northY,y));}
+export function panSphere(view,dx,dy,radius){
+ const latitude=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))+dy/radius;
+ return {x:wrap(view.x-dx/(2*Math.PI*radius),1),y:sphereYAtLatitude(latitude)};
+}
 export function sphereCamera(view,width,height,dpr=1,zoom=0){
  const lon=(view.x-.5)*2*Math.PI,lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y))),cl=Math.cos(lat),sl=Math.sin(lat),co=Math.cos(lon),so=Math.sin(lon);
  return {right:[co,0,-so],up:[-sl*so,cl,-sl*co],front:[cl*so,sl,cl*co],center:[wrap(view.x,1),view.y],width:width*dpr,height:height*dpr,radius:Math.min(width,height)*.46*dpr*2**zoom};
@@ -24,7 +37,7 @@ export function zoomSphereAt(view,width,height,oldZoom,newZoom,x,y){
  const radius=Math.min(width,height)*.46*2**newZoom,a=x/radius,b=-y/radius,cp=Math.hypot(point[0],point[2]);
  if(a*a+b*b>=1||Math.abs(a)>cp||cp<1e-12)return {x:view.x,y:view.y};
  const lonP=Math.atan2(point[0],point[2]),delta=Math.asin(Math.max(-1,Math.min(1,a/cp))),old=sphereCamera(view,width,height).front,candidates=[];
- for(const d of [delta,Math.PI-delta]){const B=cp*Math.cos(d),r=Math.hypot(point[1],B),lat=Math.atan2(point[1],B)-Math.asin(Math.max(-1,Math.min(1,b/r)));if(Math.abs(lat)>1.48442223)continue;const lon=lonP-d,front=[Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon)];candidates.push({x:wrap(lon/(2*Math.PI)+.5,1),y:(1-Math.log(Math.tan(Math.PI/4+lat/2))/Math.PI)/2,score:dot(front,old)});}
+ for(const d of [delta,Math.PI-delta]){const B=cp*Math.cos(d),r=Math.hypot(point[1],B),lat=Math.atan2(point[1],B)-Math.asin(Math.max(-1,Math.min(1,b/r)));if(Math.abs(lat)>SPHERE_LATITUDE_LIMIT)continue;const lon=lonP-d,front=[Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon)];candidates.push({x:wrap(lon/(2*Math.PI)+.5,1),y:sphereYAtLatitude(lat),score:dot(front,old)});}
  candidates.sort((a,b)=>b.score-a.score);return candidates[0]??{x:view.x,y:view.y};
 }
 

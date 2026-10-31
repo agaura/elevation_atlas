@@ -15,3 +15,18 @@ test('sphere zoom ceiling uses globally finest equatorial resolution in CSS pixe
   }
  }
 });
+
+test('north and south rotation limits center the poles symmetrically',async()=>{
+ const {panSphere,boundedSphereY}=await import('../sphere.js');
+ const view={x:.5,y:.5},north=panSphere(view,0,1e6,400),south=panSphere(view,0,-1e6,400);
+ assert.ok(Math.abs(north.y+south.y-1)<1e-12);
+ for(const [point,sign] of [[north,1],[south,-1]]){
+  const camera=sphereCamera(point,800,600);
+  assert.ok(Math.abs(camera.front[1]-sign)<1e-12);
+  assert.ok(Math.abs(camera.up[1]*camera.radius)<1e-5);
+  assert.equal(boundedSphereY(point.y),point.y);
+  assert.ok(sphereTiles(camera,4).length>0);
+ }
+ assert.equal(panSphere(north,0,100,400).y,north.y);
+ assert.equal(panSphere(south,0,-100,400).y,south.y);
+});
