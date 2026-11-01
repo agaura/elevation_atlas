@@ -37,6 +37,8 @@ Hold **Shift** to preview highlight at the hovered elevation; release to restore
 
 Seascape loads first; broad ocean views refine to GEBCO in the background. Finer views retain Seascape when they exceed GEBCO’s native resolution. Refinement continues silently with Water off. Unknown-depth water falls back to Mapterhorn where available.
 
+Inland-water elevations use an experimental Mapterhorn surface estimate plus Seascape’s negative depth, using nearby water samples to reduce shoreline outliers. Unknown depths retain Mapterhorn elevations. GEBCO refines the ocean while inland water retains the same estimate. This assumes positive Mapterhorn water elevations represent the surface, and can be inaccurate where they represent the lake bed.
+
 Rendering uses the full device pixel ratio and floating-point elevation textures. Detail is limited by the underlying surveys, and the polar caps beyond approximately ±85.05° are not covered. Sources have different vertical datums and may show seams. This is a visualization, not a navigation chart or seamless geodetic dataset.
 
 Requests use bounded concurrency, retries, and memory/disk caches. Only needed terrain is requested; the app does not prefetch the whole Earth. HDR output depends on browser, OS, and display support.

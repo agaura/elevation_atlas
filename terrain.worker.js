@@ -2,6 +2,7 @@ import {getResource,putResource,resourceLifetime} from './resource-cache.js';
 import {politeFetch,setBackgroundPaused} from './request-policy.js';
 import {gebcoSampling} from './gebco.js';
 import {decode,merge,wrap} from './terrain.js';
+import {correctWaterSurfaceGrid} from './water-surface.js';
 const controllers=new Map();
 async function imageData(url,signal,retry){
  const key='terrain-image-v1:'+url;
@@ -29,14 +30,21 @@ async function oceanTile(metadata,t,controller,retry,id,oceanSource){
  const {gebcoTile}=await import('./gebco-reader.js');
  return gebcoTile(t,size,controller.signal,progress);
 }
-self.onmessage=async({data})=>{if(data.pauseBackground!==undefined){setBackgroundPaused(data.pauseBackground);return;}if(data.cancel){controllers.get(data.id)?.abort();return;}const {id,t,metadata,retry,oceanSource='seascape'}=data,controller=new AbortController();controllers.set(id,controller);try{const [land,sea]=await Promise.all([sourceTile(metadata.land,t,controller.signal,retry),oceanTile(metadata,t,controller,retry,id,oceanSource)]);const size=Math.max(land.size,sea.size),values=new Float32Array(size*size*2);function sample(src,x,y){
+self.onmessage=async({data})=>{if(data.pauseBackground!==undefined){setBackgroundPaused(data.pauseBackground);return;}if(data.cancel){controllers.get(data.id)?.abort();return;}const {id,t,metadata,retry,oceanSource='seascape'}=data,controller=new AbortController();controllers.set(id,controller);try{const [land,sea]=await Promise.all([sourceTile(metadata.land,t,controller.signal,retry),oceanTile(metadata,t,controller,retry,id,oceanSource)]);const seascape=sea.values?await sourceTile(metadata.sea,t,controller.signal,retry):sea;const size=Math.max(land.size,sea.size),values=new Float32Array(size*size*2);function sample(src,x,y){
  if(src.values)return src.values[y*src.size+x];
  const read=(px,py)=>{const i=(Math.max(0,Math.min(src.size-1,py))*src.size+Math.max(0,Math.min(src.size-1,px)))*4;return src.data[i+3]===0?NaN:decode(src.data[i],src.data[i+1],src.data[i+2]);};
  const px=(src.offsetX+(x+.5)/size)*src.size/src.factor-.5,py=(src.offsetY+(y+.5)/size)*src.size/src.factor-.5;
  const nearest=read(Math.round(px),Math.round(py));if(src.factor===1)return nearest;
  const ix=Math.floor(px),iy=Math.floor(py),fx=px-ix,fy=py-iy;
  const a=read(ix,iy),b=read(ix+1,iy),c=read(ix,iy+1),d=read(ix+1,iy+1);
- if(![a,b,c,d].every(Number.isFinite)||(src===sea&&![a,b,c,d].every(v=>v<0)))return nearest;
+ if(![a,b,c,d].every(Number.isFinite)||((src===sea||src===seascape)&&![a,b,c,d].every(v=>v<0)))return nearest;
  return (a*(1-fx)+b*fx)*(1-fy)+(c*(1-fx)+d*fx)*fy;
- }for(let y=0;y<size;y++)for(let x=0;x<size;x++){const l=sample(land,x,y),s=sample(sea,x,y),i=(y*size+x)*2;values[i]=merge(l,s);// Keep water classification for the removal toggle, but use the elevation provider’s texel spacing.
-values[i+1]=(Number.isFinite(s)&&(sea.values?s>=0:Math.round(s)>=2)?1:-1)*(s<0?sea.factor:land.factor);}if(!controller.signal.aborted){self.postMessage({id,size,values,oceanSource:sea.values?'gebco':'seascape',overzoomed:land.factor>1||sea.factor>1},[values.buffer]);}}catch(error){self.postMessage({id,error:error.message,status:error.status,retryAfterMs:error.retryAfterMs||0});}finally{controller.abort();controllers.delete(id);}};
+ }
+ const landValues=new Float32Array(size*size),seaValues=new Float32Array(size*size);
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=y*size+x;landValues[i]=sample(land,x,y);seaValues[i]=sample(seascape,x,y);}
+ const corrected=correctWaterSurfaceGrid(landValues,seaValues,size,(x,y)=>({land:sample(land,x,y),sea:sample(seascape,x,y)}));
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){const j=y*size+x,l=landValues[j],rawSea=seaValues[j],inland=Number.isFinite(l)&&l>0&&Number.isFinite(rawSea)&&Math.round(rawSea)<2,s=sea.values?sample(sea,x,y):rawSea,i=j*2;
+// GEBCO refines oceans; retain the same Seascape/Mapterhorn inland-water
+// estimate so refinement cannot flatten lakes or change them back to land.
+values[i]=!sea.values||inland?corrected[j]:merge(l,s);// Keep water classification for the removal toggle, but use the elevation provider’s texel spacing.
+values[i+1]=(inland?-1:(Number.isFinite(s)&&(sea.values?s>=0:Math.round(s)>=2)?1:-1))*(inland?(rawSea<0?seascape.factor:land.factor):(s<0?sea.factor:land.factor));}if(!controller.signal.aborted){self.postMessage({id,size,values,oceanSource:sea.values?'gebco':'seascape',overzoomed:land.factor>1||sea.factor>1},[values.buffer]);}}catch(error){self.postMessage({id,error:error.message,status:error.status,retryAfterMs:error.retryAfterMs||0});}finally{controller.abort();controllers.delete(id);}};
