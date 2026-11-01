@@ -58,9 +58,12 @@ if(!legend&&p.highlight.w>.5){
  let mask=textureLoad(mapMask,coord,0).rgb;
  var linear=decodeSRGB(c);
  let luminance=dot(linear,vec3f(.2289746,.6917385,.0792869));
- // Roads act on the terrain itself, retaining its luminance structure.
- linear=mix(linear,vec3f(luminance),.5*mask.r);
- linear*=1.+2.*mask.r;
+ // Dark terrain gets 3x gain, tapering to 2x at linear SDR white (Y=1).
+ // A modest luminance floor keeps roads legible over hidden water/nodata.
+ let roadGain=mix(3.,2.,clamp(luminance,0.,1.));
+ var road=mix(linear,vec3f(luminance),.5)*roadGain;
+ road+=vec3f(max(0.,.08-luminance*roadGain));
+ linear=mix(linear,road,mask.r);
  linear=mix(linear,mapInk(decodeSRGB(vec3f(.47,.72,.96))),mask.g);
  // Label backgrounds and glyphs are composited after every map/terrain effect.
  linear=mix(linear,select(vec3f(.002,.004,.008),vec3f(.004),p.range.z<.5),mask.b);
