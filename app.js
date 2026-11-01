@@ -1,3 +1,4 @@
+import {highlightPulse,pulseElapsedAtElevation} from './highlight-pulse.js';
 import {HoverHighlightFilter} from './hover-highlight.js';
 import {trimTerrain} from './terrain-cache.js';
 import {retryDelay} from './request-policy.js';
@@ -22,6 +23,16 @@ let sphereZoom=0,globeCamera=null;
 const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1),highlightTransition=new SineTransition(0);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const sliderDomain={min:new SineTransition(-12000),max:new SineTransition(9000)};let viewBounds={min:-12000,max:9000};
 let shiftHoverHeld=false,shiftHoverElevation=null;
+let pulseStart=0,pulseElevation=null,pulseTimer=0,pulseSweeping=false;
+function pulseRunning(){return $('pulse').checked&&$('highlight').checked&&!highlightPreviewOnly;}
+function updatePulse(time){
+ clearTimeout(pulseTimer);pulseTimer=0;
+ if(!pulseRunning()){pulseElevation=null;pulseSweeping=false;return;}
+ const state=highlightPulse(time-pulseStart,5,0,min,max,activeWidth());
+ pulseElevation=state.elevation;pulseSweeping=state.sweeping;
+ if(!state.sweeping&&!document.hidden)pulseTimer=setTimeout(requestRender,Math.max(1,state.waitMs));
+}
+
 const highlightTweens={elevation:new ExposureTransition(0),width:new ExposureTransition(1)};
 const hoverHighlightFilter=new HoverHighlightFilter();
 let highlightStateReady=false,lastHighlightMotion=-Infinity,hoverFilterActive=false;
@@ -32,7 +43,7 @@ function snapHighlightState(){
 }
 function advanceHighlightState(time){
  const elevation=activeElevation(),width=activeWidth();
- if(!highlightStateReady||hovering||reducedMotion.matches||highlightTransition.valueAt(time)===0){
+ if(!highlightStateReady||hovering||(pulseRunning()&&shiftHoverElevation===null)||reducedMotion.matches||highlightTransition.valueAt(time)===0){
   highlightTweens.elevation.snap(elevation);highlightTweens.width.snap(width);hoverFilterActive=false;highlightStateReady=true;
  }
  if(elevation!==highlightTweens.elevation.target||width!==highlightTweens.width.target)lastHighlightMotion=time;
@@ -219,7 +230,7 @@ function advanceExposure(time){
 }
 function retargetExposure(time){const moving=movingView(time);exposureTweens.min.retarget(exposureTargets.min,time,moving);exposureTweens.max.retarget(exposureTargets.max,time,moving);}
 function render(time=performance.now()){
- if(!renderer||!metadata)return;const easing=advanceExposure(time),domainEasing=advanceSliderDomain(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);updateProbe();const highlightTarget=highlightActive()?1:0;
+ if(!renderer||!metadata)return;const easing=advanceExposure(time),domainEasing=advanceSliderDomain(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);updatePulse(time);updateProbe();const highlightTarget=highlightActive()?1:0;
  highlightTransition.retarget(highlightTarget,time);
  if(reducedMotion.matches)highlightTransition.snap(highlightTarget);
  const highlightEasing=advanceHighlightState(time);
@@ -245,7 +256,7 @@ function render(time=performance.now()){
    retargetExposure(now);controls();requestRender();
   }else if(exposureDirty)requestRender();
  }});
- if(started)exposureDirty=false;if(easing||domainEasing||highlightEasing||edgeTransition.active(time)||highlightTransition.active(time))requestRender();
+ if(started)exposureDirty=false;if(pulseSweeping||easing||domainEasing||highlightEasing||edgeTransition.active(time)||highlightTransition.active(time))requestRender();
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');swatchContext=$('highlight-swatch').getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format,alphaMode:'opaque'});}
  $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext,swatchContext);
@@ -272,11 +283,27 @@ $('water').addEventListener('change',()=>{report();exposureConfig++;invalidateTe
 $('edges').addEventListener('change',()=>{edgeTransition.retarget($('edges').checked?1:0,performance.now());requestRender();});
 const meters=value=>value.toLocaleString(undefined,{maximumFractionDigits:3})+' m';
 function highlightActive(){return shiftHoverElevation!==null||hovering||$('highlight').checked;}
-function activeElevation(){if(shiftHoverElevation!==null)return shiftHoverElevation;return hovering&&previewElevation!==null?previewElevation:highlightElevationLocked?(pinnedElevation??elevationAt(.5,min,max)):elevationAt(highlightPosition,min,max);}
+function activeElevation(){if(shiftHoverElevation!==null)return shiftHoverElevation;if(hovering&&previewElevation!==null)return previewElevation;if(pulseRunning()&&pulseElevation!==null)return pulseElevation;return highlightElevationLocked?(pinnedElevation??elevationAt(.5,min,max)):elevationAt(highlightPosition,min,max);}
 function selectHighlightElevation(elevation){pinnedElevation=elevation;highlightPosition=(elevation-min)/(max-min);}
 function activeWidth(){return lockedHighlightWidth??defaultHighlightWidth(min,max,highlightFraction);}
 function initializeHighlight(){if(pinnedElevation===null)selectHighlightElevation(elevationAt(.5,min,max));}
+let lastPulseRunning=false;
+function setHighlightElevationLocked(locked){
+ highlightElevationLocked=locked;
+ const button=$('highlight-elevation-lock'),label=`${locked?'Unlock':'Lock'} highlight elevation`;
+ button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=label;
+ button.closest('.slider-control').classList.toggle('is-locked',locked);
+}
+function syncPulseControls(){
+ const running=pulseRunning();
+ if(running!==lastPulseRunning){setHighlightElevationLocked(!running);lastPulseRunning=running;}
+ $('highlight-elevation-setting').hidden=$('pulse').checked;
+}
+function manualHighlightSelection(){
+ $('pulse').checked=false;setHighlightElevationLocked(true);updatePulse(performance.now());syncPulseControls();
+}
 function highlightLabel(){
+ syncPulseControls();
  if(hovering)previewElevation=elevationAt(hoverPosition,min,max);
  const elevation=activeElevation(),halfWidth=activeWidth(),active=highlightActive();
  const displayedElevation=highlightStateReady?highlightTweens.elevation.current:elevation;
@@ -308,12 +335,24 @@ function previewHighlight(event){if(!hovering&&!$('highlight').checked){highligh
 for(const type of ['contextmenu','selectstart','dragstart'])legend.addEventListener(type,event=>event.preventDefault());
 legend.addEventListener('touchstart',event=>event.preventDefault(),{passive:false});
 legend.addEventListener('pointerenter',previewHighlight);legend.addEventListener('pointermove',previewHighlight);
-legend.addEventListener('pointerdown',event=>{if(event.pointerType!=='mouse')event.preventDefault();legend.setPointerCapture(event.pointerId);previewHighlight(event);selectHighlightElevation(previewElevation);highlightPreviewOnly=false;$('highlight').checked=true;});
-legend.addEventListener('pointerup',event=>{previewHighlight(event);selectHighlightElevation(previewElevation);if(event.pointerType!=='mouse'){hovering=false;highlightLabel();requestRender();}});
-function endHighlightPreview(){hovering=false;if(highlightPreviewOnly)$('highlight').checked=false;highlightPreviewOnly=false;highlightLabel();requestRender();}
+legend.addEventListener('pointerdown',event=>{if(event.pointerType!=='mouse')event.preventDefault();legend.setPointerCapture(event.pointerId);previewHighlight(event);selectHighlightElevation(previewElevation);highlightPreviewOnly=false;$('highlight').checked=true;manualHighlightSelection();});
+legend.addEventListener('pointerup',event=>{previewHighlight(event);selectHighlightElevation(previewElevation);manualHighlightSelection();if(event.pointerType!=='mouse'){hovering=false;highlightLabel();requestRender();}});
+function endHighlightPreview(){
+ const resumePulse=hovering&&pulseRunning(),lastElevation=highlightTweens.elevation.current;
+ hovering=false;if(highlightPreviewOnly)$('highlight').checked=false;highlightPreviewOnly=false;
+ if(resumePulse&&pulseRunning()){
+  const now=performance.now();
+  pulseStart=now-pulseElapsedAtElevation(lastElevation,5,min,max,activeWidth());updatePulse(now);
+ }
+ highlightLabel();requestRender();
+}
 for(const event of ['pointerleave','pointercancel'])legend.addEventListener(event,endHighlightPreview);
-$('highlight').addEventListener('change',()=>{highlightPreviewOnly=false;if($('highlight').checked)initializeHighlight();hovering=false;highlightLabel();requestRender();});
-$('highlight-elevation').addEventListener('input',()=>{selectHighlightElevation(Number($('highlight-elevation').value));hovering=false;highlightLabel();requestRender();});
+$('highlight').addEventListener('change',()=>{
+ highlightPreviewOnly=false;
+ if($('highlight').checked){initializeHighlight();if($('pulse').checked)pulseStart=performance.now();}
+ hovering=false;updatePulse(performance.now());highlightLabel();requestRender();
+});
+$('highlight-elevation').addEventListener('input',()=>{if($('pulse').checked)manualHighlightSelection();selectHighlightElevation(Number($('highlight-elevation').value));hovering=false;highlightLabel();requestRender();});
 $('highlight-elevation-lock').addEventListener('click',()=>{
  const elevation=activeElevation();highlightElevationLocked=!highlightElevationLocked;
  selectHighlightElevation(elevation);hovering=false;
@@ -333,13 +372,27 @@ $('highlight-width-lock').addEventListener('click',()=>{
  highlightLabel();requestRender();
 });
 legend.addEventListener('keydown',event=>{
+ if(keyAction(event.code))return; // Navigation keys remain global even on the color strip.
  if(event.key==='Escape'){highlightPreviewOnly=false;$('highlight').checked=false;hovering=false;}
  else if(['ArrowLeft','ArrowRight','Home','End','Enter',' '].includes(event.key)){
   initializeHighlight();const step=(max-min)*.01;let elevation=activeElevation();
   if(event.key==='ArrowLeft')elevation-=step;if(event.key==='ArrowRight')elevation+=step;if(event.key==='Home')elevation=min;if(event.key==='End')elevation=max;
   selectHighlightElevation(elevation);
-  highlightPreviewOnly=false;$('highlight').checked=true;hovering=false;
+  highlightPreviewOnly=false;$('highlight').checked=true;manualHighlightSelection();hovering=false;
  }else return;event.preventDefault();highlightLabel();requestRender();
+});
+$('pulse').addEventListener('change',()=>{
+ const now=performance.now();
+ if(!$('pulse').checked){selectHighlightElevation(highlightTweens.elevation.current);setHighlightElevationLocked(true);}
+ pulseStart=now;
+ if($('pulse').checked&&$('highlight').checked&&highlightStateReady){
+  pulseStart-=pulseElapsedAtElevation(highlightTweens.elevation.current,5,min,max,activeWidth());
+ }
+ updatePulse(now);highlightLabel();requestRender();
+});
+document.addEventListener('visibilitychange',()=>{
+ clearTimeout(pulseTimer);pulseTimer=0;
+ if(!document.hidden&&pulseRunning()){pulseStart=performance.now();requestRender();}
 });
 $('palette').addEventListener('change',requestRender);
 $('map-mode').addEventListener('change',()=>{mapOverlay.enable($('map-mode').checked);requestRender();});
@@ -456,7 +509,7 @@ for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.add
   shiftClickCandidate=null;
   if(commit){
    cursor={x:e.clientX,y:e.clientY,inside:true};shiftHoverHeld=true;updateProbe();
-   if(shiftHoverElevation!==null){selectHighlightElevation(shiftHoverElevation);$('highlight').checked=true;$('highlight').dispatchEvent(new Event('change',{bubbles:true}));}
+   if(shiftHoverElevation!==null){selectHighlightElevation(shiftHoverElevation);$('highlight').checked=true;$('highlight').dispatchEvent(new Event('change',{bubbles:true}));manualHighlightSelection();highlightLabel();}
   }
  }
  if(!pointers.has(e.pointerId))return;const single=pointers.size===1;pointers.delete(e.pointerId);gesture=pointers.size?snapshot():null;if(event==='pointerup'&&single)startMomentum();else stopMomentum();lastMove=pointers.size?performance.now():lastMove;});
@@ -485,6 +538,11 @@ function updateProbe(){
  // Gaps and hidden water hold the last valid preview for this hover session.
  const preview=sample?.elevation!=null&&(!sample.water||$('water').checked)
   ?sample.elevation:shiftHoverHeld&&cursor.inside?shiftHoverElevation:null;
+ if(preview===null&&shiftHoverElevation!==null&&pulseRunning()){
+  const now=performance.now();
+  pulseStart=now-pulseElapsedAtElevation(highlightTweens.elevation.current,5,min,max,activeWidth());
+  updatePulse(now);
+ }
  if(preview!==shiftHoverElevation){shiftHoverElevation=preview;highlightLabel();requestRender();}
 
  $('probe-status').closest('.probe-heading').hidden=!pinnedProbe;
@@ -508,12 +566,13 @@ setupCanvasGestures(canvas,{
 $('probe-unpin').addEventListener('click',()=>{pinnedProbe=null;requestProbeUpdate();});
 
 canvas.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')shiftHoverHeld=event.shiftKey;cursor={x:event.clientX,y:event.clientY,inside:event.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
+function searchHasKeyboardFocus(event){return Boolean(event.target.closest?.('#location-query'));}
 // Shift previews never change the saved highlight toggle, elevation or locks.
 window.addEventListener('keydown',event=>{
- if(event.key!=='Shift'||event.ctrlKey||event.metaKey||event.altKey||event.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return;
+ if(event.key!=='Shift'||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
  shiftHoverHeld=true;requestProbeUpdate();
 });
-window.addEventListener('keyup',event=>{if(event.key==='Shift'){shiftHoverHeld=false;requestProbeUpdate();}});
+window.addEventListener('keyup',event=>{if(event.key==='Shift'){shiftHoverHeld=false;requestProbeUpdate();}},{capture:true});
 function endShiftHover(){shiftHoverHeld=false;requestProbeUpdate();}
 window.addEventListener('blur',endShiftHover);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)endShiftHover();});
@@ -548,6 +607,7 @@ function highlightTick(time){
   if(Math.abs(motion.velocity)>.0001||direction){
    moving=true;slider.value=motion.value;
    slider.dispatchEvent(new Event('input',{bubbles:true}));
+   const number=$(slider.id+'-number');if(document.activeElement===number)number.value=slider.value;
   }
  }
  if(moving)highlightFrame=requestAnimationFrame(highlightTick);else stopHighlightMotion();
@@ -557,14 +617,14 @@ window.addEventListener('keyup',event=>{
  const key=highlightKeys.get(event.code);if(!key)return;
  highlightKeys.delete(event.code);
  if(performance.now()<key.start+30)highlightTaps.set(event.code,{...key,until:key.start+30});
-});
+},{capture:true});
 window.addEventListener('blur',stopHighlightMotion);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHighlightMotion();});
-document.addEventListener('focusin',event=>{if(event.target.closest?.('input,textarea,select,button,[contenteditable]:not([contenteditable="false"])'))stopHighlightMotion();});
+document.addEventListener('focusin',event=>{if(searchHasKeyboardFocus(event))stopHighlightMotion();});
 // View shortcuts share the controls' event paths, including animated edges
-// and water/exposure invalidation. Leave text entry and browser shortcuts alone.
+// and water/exposure invalidation. Only search typing and browser modifiers are excluded.
 window.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.target.closest?.('input,textarea,select,button,[contenteditable]:not([contenteditable="false"])'))return;
+ if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
  if(event.key.toLowerCase()==='f'){
   event.preventDefault();
   if(!event.repeat){
@@ -592,7 +652,7 @@ window.addEventListener('keydown',event=>{
   highlightMotion.width.value=Number($('highlight-width').value);
   highlightTime=performance.now();highlightFrame=requestAnimationFrame(highlightTick);
  }
-});
+},{capture:true});
 const keyAction=code=>({ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',Equal:'in',NumpadAdd:'in',Minus:'out',NumpadSubtract:'out'})[code];
 function stopNavigation(){cancelAnimationFrame(navigationFrame);navigationFrame=0;heldKeys.clear();tapUntil.clear();navX=navY=navZoom=0;}
 function navigationTick(time){
@@ -606,11 +666,11 @@ function navigationTick(time){
  if(active.size||Math.hypot(navX,navY)>.1||Math.abs(navZoom)>.0005)navigationFrame=requestAnimationFrame(navigationTick);else stopNavigation();
 }
 window.addEventListener('keydown',event=>{
- const action=keyAction(event.code);if(!action||event.ctrlKey||event.metaKey||event.altKey||event.target.closest?.('input,textarea,select,button,[contenteditable="true"]'))return;
+ const action=keyAction(event.code);if(!action||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
  event.preventDefault();if(heldKeys.has(event.code))return;stopMomentum();heldKeys.set(event.code,{action,start:performance.now()});if(!navigationFrame){navigationTime=performance.now();navigationFrame=requestAnimationFrame(navigationTick);}
-});
-window.addEventListener('keyup',event=>{const key=heldKeys.get(event.code);if(!key)return;heldKeys.delete(event.code);if(performance.now()<key.start+90)tapUntil.set(key.action,key.start+90);});
-document.addEventListener('focusin',event=>{if(event.target.closest?.('input,textarea,select,button,[contenteditable="true"]'))stopNavigation();});
+},{capture:true});
+window.addEventListener('keyup',event=>{const key=heldKeys.get(event.code);if(!key)return;heldKeys.delete(event.code);if(performance.now()<key.start+90)tapUntil.set(key.action,key.start+90);},{capture:true});
+document.addEventListener('focusin',event=>{if(searchHasKeyboardFocus(event))stopNavigation();});
 window.addEventListener('blur',stopNavigation);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopNavigation();});
 init().catch(e=>{$('message').textContent=e.message;console.error(e);});
 

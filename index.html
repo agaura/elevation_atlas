@@ -108,7 +108,8 @@
                             type="checkbox" role="switch"></label></div>
                 <div id="highlight-panel" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner"><fieldset id="highlight-controls" disabled>
                     <legend class="sr">Highlight settings</legend>
-                    <div class="slider-control">
+                    <label class="toggle">Pulse <input id="pulse" type="checkbox" role="switch" checked></label>
+                    <div id="highlight-elevation-setting" class="slider-control" hidden>
                         <div class="control-heading"><label for="highlight-elevation">Elevation</label><span
                                 class="value-edit"><input id="highlight-elevation-number" aria-label="Elevation value"
                                     type="number" step="any" value="-1075"><span class="unit">m</span><span
@@ -156,7 +157,8 @@
                         <div class="slider-row"><input id="highlight-width" type="range" min="1e-06"
                                 max="24000" step="any" value="2481.25"></div>
                     </div>
-                </fieldset></div></div><label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
+                </fieldset></div></div>
+                <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
                 <details class="render-details">
