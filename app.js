@@ -1,3 +1,4 @@
+import {HoverHighlightFilter} from './hover-highlight.js';
 import {trimTerrain} from './terrain-cache.js';
 import {retryDelay} from './request-policy.js';
 import {gebcoSampling} from './gebco.js';
@@ -22,22 +23,33 @@ const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:
 const sliderDomain={min:new SineTransition(-12000),max:new SineTransition(9000)};let viewBounds={min:-12000,max:9000};
 let shiftHoverHeld=false,shiftHoverElevation=null;
 const highlightTweens={elevation:new ExposureTransition(0),width:new ExposureTransition(1)};
-let highlightStateReady=false,lastHighlightMotion=-Infinity;
+const hoverHighlightFilter=new HoverHighlightFilter();
+let highlightStateReady=false,lastHighlightMotion=-Infinity,hoverFilterActive=false;
 function snapHighlightState(){
  if(!shiftHoverHeld||!cursor.inside)shiftHoverElevation=null;
  highlightTweens.elevation.snap(activeElevation());highlightTweens.width.snap(activeWidth());
- highlightStateReady=true;highlightTransition.snap(highlightActive()?1:0);
+ hoverFilterActive=false;highlightStateReady=true;highlightTransition.snap(highlightActive()?1:0);
 }
 function advanceHighlightState(time){
  const elevation=activeElevation(),width=activeWidth();
  if(!highlightStateReady||hovering||reducedMotion.matches||highlightTransition.valueAt(time)===0){
-  highlightTweens.elevation.snap(elevation);highlightTweens.width.snap(width);highlightStateReady=true;
+  highlightTweens.elevation.snap(elevation);highlightTweens.width.snap(width);hoverFilterActive=false;highlightStateReady=true;
  }
  if(elevation!==highlightTweens.elevation.target||width!==highlightTweens.width.target)lastHighlightMotion=time;
  const moving=time-lastHighlightMotion<100;
- highlightTweens.elevation.retarget(elevation,time,moving);
+ const shiftPreview=!hovering&&!reducedMotion.matches&&shiftHoverHeld&&shiftHoverElevation!==null;
+ if(shiftPreview){
+  if(!hoverFilterActive){hoverHighlightFilter.reset(highlightTweens.elevation.current,time);hoverFilterActive=true;}
+  hoverHighlightFilter.advance(elevation,time);
+  highlightTweens.elevation.snap(hoverHighlightFilter.value);
+ }else{
+  if(hoverFilterActive){
+   highlightTweens.elevation.start(highlightTweens.elevation.current,elevation,time);hoverFilterActive=false;
+  }
+  highlightTweens.elevation.retarget(elevation,time,moving);
+ }
  highlightTweens.width.retarget(width,time,moving);
- return highlightTweens.elevation.active()||highlightTweens.width.active();
+ return highlightTweens.elevation.active()||highlightTweens.width.active()||(hoverFilterActive&&hoverHighlightFilter.active);
 }
 
 let highlightElevationLocked=true,highlightPosition=.5,pinnedElevation=null,previewElevation=null,hoverPosition=.5,highlightFraction=1/8,lockedHighlightWidth=null,hovering=false,highlightPreviewOnly=false,exposureDirty=true,exposureConfig=0,lastViewMotion=-Infinity,viewDirty=false;
