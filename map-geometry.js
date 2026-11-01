@@ -1,6 +1,6 @@
 // Immutable vector data prepared once in the tile worker, shared by GPU strokes
 // and the much smaller CPU label-placement/proximity queries.
-export const ROAD_STYLES={motorway:[.65,4],trunk:[.55,5],primary:[.475,6],secondary:[.4,8],tertiary:[.35,9],minor:[.3,11],service:[.3,13],track:[.3,14],path:[.3,15],rail:[.275,9],transit:[.3,13]};
+export const ROAD_STYLES={motorway:[.65,5],trunk:[.55,5],primary:[.475,6],secondary:[.4,8],tertiary:[.35,9],minor:[.3,11],service:[.3,13],track:[.3,14],path:[.3,15],rail:[.275,9],transit:[.3,13]};
 export function roadStyle(kind){return ROAD_STYLES[kind]||[.3,12];}
 export function buildMapGeometry(layers,z){
  const data=[],grid=new Map(),groups=new Map(),gridBounds=[Infinity,Infinity,-Infinity,-Infinity];let stateBorders=false;

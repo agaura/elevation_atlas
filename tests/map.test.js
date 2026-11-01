@@ -33,7 +33,7 @@ test('settlement context requires a drawn road nearby, including long crossing s
 });
 
 test('local map detail waits for twice the magnification while administrative context stays unchanged',()=>{
- assert.equal(roadWidth('motorway',3),0);assert.ok(roadWidth('motorway',4)>0);
+ assert.equal(roadWidth('motorway',3),0);assert.equal(roadWidth('motorway',4),0);assert.ok(roadWidth('motorway',5)>0);
  assert.equal(roadWidth('primary',5),0);assert.ok(roadWidth('primary',6)>0);
  assert.equal(placeStyle({class:'village'},10),null);assert.ok(placeStyle({class:'village'},11));
  assert.ok(placeStyle({class:'country'},2));assert.ok(placeStyle({class:'state'},5));

@@ -33,7 +33,7 @@ export function mapProject(view,width,height,camera,tile,extent,x,y){
  return [camera.width/2+dot(point,camera.right)*camera.radius,camera.height/2-dot(point,camera.up)*camera.radius];
 }
 export function roadWidth(kind,zoom){
- const min={motorway:3,trunk:4,primary:5,secondary:7,tertiary:8,minor:10,service:12,track:13,path:14,rail:8,transit:12};
+ const min={motorway:4,trunk:4,primary:5,secondary:7,tertiary:8,minor:10,service:12,track:13,path:14,rail:8,transit:12};
  if(zoom<(min[kind]??11)+1)return 0;
  return .5*(({motorway:1.3,trunk:1.1,primary:.95,secondary:.8,tertiary:.7,rail:.55})[kind]??.6);
 }
