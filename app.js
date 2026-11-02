@@ -1,3 +1,4 @@
+import {distanceScale} from './scale-bar.js';
 import {highlightPulse,pulseElapsedAtElevation} from './highlight-pulse.js';
 import {HoverHighlightFilter} from './hover-highlight.js';
 import {trimTerrain} from './terrain-cache.js';
@@ -10,7 +11,7 @@ import {setupSearch,searchDestination} from './search.js';
 import {MapOverlay} from './map-overlay.js';
 import {probePosition,sampleProbe,projectProbe} from './probe.js';
 import {SineTransition,ExposureTransition} from './exposure.js';
-import {sphereCamera,sphereTiles,zoomSphereAt,maximumSphereZoom,boundedSphereY,panSphere,sphereZoomFromMapZoom,mapZoomFromSphereZoom} from './sphere.js';
+import {sphereCamera,sphereTiles,zoomSphereAt,maximumSphereZoom,boundedSphereY,panSphere,dragSphere,sphereZoomFromMapZoom,mapZoomFromSphereZoom} from './sphere.js';
 import {elevationAt,defaultHighlightWidth} from './highlight.js';
 import {coastStep} from './motion.js';
 import {createRenderer} from './gpu.js';
@@ -192,6 +193,8 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  const swatch=$('highlight-swatch'),swatchSize=Math.max(1,Math.round(12*dpr));if(swatch.width!==swatchSize)swatch.width=swatchSize;if(swatch.height!==swatchSize)swatch.height=swatchSize;
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
  globeCamera=isSphere()?sphereCamera(view,width,height,dpr,sphereZoom):null;
+ const distanceBar=distanceScale(view,width,globeCamera?globeCamera.radius/dpr:null);$('distance-scale-label').textContent=distanceBar.label;$('distance-scale-line').style.width=`${distanceBar.width}px`;
+
  const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});const needed=new Set(requested.map(t=>t.key));queue=[];
  for(const [key,entry] of cache){if(!needed.has(key))entry.refineAbort?.abort();if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}
  for(const t of requested){let entry=cache.get(t.key);if(!entry){entry={state:'queued',abort:new AbortController()};cache.set(t.key,entry);queue.push(t);}else if(entry.state==='queued'&&!queue.some(q=>q.key===t.key))queue.push(t);entry.used=performance.now();}
@@ -499,7 +502,11 @@ canvas.addEventListener('pointermove',e=>{
  if(e.pointerType==='mouse')shiftHoverHeld=e.shiftKey;
  cursor={x:e.clientX,y:e.clientY,inside:e.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();
  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const next=snapshot(),s=256*2**view.zoom,now=performance.now(),dt=Math.max(1,now-lastMove),dx=next.x-gesture.x,dy=next.y-gesture.y;
- panBy(dx,dy);
+ if(isSphere()){
+  const rect=canvas.getBoundingClientRect();
+  Object.assign(view,dragSphere(view,width,height,sphereZoom,gesture.x-rect.left-width/2,gesture.y-rect.top-height/2,next.x-rect.left-width/2,next.y-rect.top-height/2));
+  lastViewMotion=now;
+ }else panBy(dx,dy);
  if(pointers.size===1){const mix=1-Math.exp(-dt/25);velocityX+=(Math.max(-2.5,Math.min(2.5,dx/dt))-velocityX)*mix;velocityY+=(Math.max(-2.5,Math.min(2.5,dy/dt))-velocityY)*mix;}else velocityX=velocityY=0;
  if(next.distance&&gesture.distance){const r=canvas.getBoundingClientRect();zoomAt(Math.log2(next.distance/gesture.distance),next.x-r.left-width/2,next.y-r.top-height/2);}else{constrain();updateView();}gesture=next;lastMove=now;
 });

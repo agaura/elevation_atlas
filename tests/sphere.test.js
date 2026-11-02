@@ -44,3 +44,23 @@ test('projection zoom conversion preserves center scale and round-trips at all D
   }
  }
 });
+
+test('sphere dragging keeps the grabbed surface point beneath the cursor',async()=>{
+ const {dragSphere,spherePointAt}=await import('../sphere.js');
+ for(const view of [{x:.5,y:.5},{x:.995,y:.3},{x:.2,y:.65}])for(const zoom of [0,2,8]){
+  const radius=800*.46*2**zoom;
+  for(const [fx,fy,tx,ty] of [[0,0,25,30],[.6,.2,.65,.25],[-.7,-.2,-.65,-.15]]){
+   const from=Math.abs(fx)<1?[fx*radius,fy*radius]:[fx,fy];
+   const to=Math.abs(tx)<1?[tx*radius,ty*radius]:[tx,ty];
+   const before=spherePointAt(view,1000,800,zoom,...from),next=dragSphere(view,1000,800,zoom,...from,...to),after=spherePointAt(next,1000,800,zoom,...to);
+   for(let i=0;i<3;i++)assert.ok(Math.abs(before[i]-after[i])<1e-9,`anchor mismatch at zoom ${zoom}`);
+  }
+ }
+});
+test('sphere dragging remains finite outside the disk and near rotation limits',async()=>{
+ const {dragSphere}=await import('../sphere.js');
+ for(const y of [-2,.5,3])for(const x of [0,500,10000]){
+  const next=dragSphere({x:.5,y},1000,800,0,0,0,x,1000);
+  assert.ok(Number.isFinite(next.x)&&Number.isFinite(next.y));
+ }
+});

@@ -32,13 +32,32 @@ export function sphereTiles(camera,maxzoom=18,tileSize=512){
 }
 // Inverse orthographic ray, using CSS pixels relative to the viewport center.
 export function spherePointAt(view,width,height,zoom,x,y){const c=sphereCamera(view,width,height,1,zoom),px=x/c.radius,py=y/c.radius,r2=px*px+py*py;if(r2>=1)return null;return c.front.map((v,i)=>v*Math.sqrt(1-r2)+c.right[i]*px-c.up[i]*py);}
+// Solve the no-roll camera orientation that puts a world-space point at a
+// specified screen position. Pick the visible solution nearest the old camera.
+function placeSpherePoint(view,point,radius,x,y){
+ const a=x/radius,b=-y/radius,cp=Math.hypot(point[0],point[2]);
+ if(a*a+b*b>=1||Math.abs(a)>cp||cp<1e-12)return null;
+ const lonP=Math.atan2(point[0],point[2]),delta=Math.asin(Math.max(-1,Math.min(1,a/cp))),old=sphereCamera(view,1,1).front,candidates=[];
+ for(const d of [delta,Math.PI-delta]){
+  const B=cp*Math.cos(d),r=Math.hypot(point[1],B),lat=Math.atan2(point[1],B)-Math.asin(Math.max(-1,Math.min(1,b/r)));
+  if(Math.abs(lat)>SPHERE_LATITUDE_LIMIT)continue;
+  const lon=lonP-d,front=[Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon)];
+  candidates.push({x:wrap(lon/(2*Math.PI)+.5,1),y:sphereYAtLatitude(lat),score:dot(front,old)});
+ }
+ candidates.sort((a,b)=>b.score-a.score);return candidates[0]??null;
+}
 export function zoomSphereAt(view,width,height,oldZoom,newZoom,x,y){
- const point=spherePointAt(view,width,height,oldZoom,x,y);if(!point)return {x:view.x,y:view.y};
- const radius=Math.min(width,height)*.46*2**newZoom,a=x/radius,b=-y/radius,cp=Math.hypot(point[0],point[2]);
- if(a*a+b*b>=1||Math.abs(a)>cp||cp<1e-12)return {x:view.x,y:view.y};
- const lonP=Math.atan2(point[0],point[2]),delta=Math.asin(Math.max(-1,Math.min(1,a/cp))),old=sphereCamera(view,width,height).front,candidates=[];
- for(const d of [delta,Math.PI-delta]){const B=cp*Math.cos(d),r=Math.hypot(point[1],B),lat=Math.atan2(point[1],B)-Math.asin(Math.max(-1,Math.min(1,b/r)));if(Math.abs(lat)>SPHERE_LATITUDE_LIMIT)continue;const lon=lonP-d,front=[Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon)];candidates.push({x:wrap(lon/(2*Math.PI)+.5,1),y:sphereYAtLatitude(lat),score:dot(front,old)});}
- candidates.sort((a,b)=>b.score-a.score);return candidates[0]??{x:view.x,y:view.y};
+ const point=spherePointAt(view,width,height,oldZoom,x,y);
+ return point?placeSpherePoint(view,point,Math.min(width,height)*.46*2**newZoom,x,y)??{x:view.x,y:view.y}:{x:view.x,y:view.y};
+}
+export function dragSphere(view,width,height,zoom,fromX,fromY,toX,toY){
+ const radius=Math.min(width,height)*.46*2**zoom;
+ const point=spherePointAt(view,width,height,zoom,fromX,fromY);
+ if(!point)return panSphere(view,toX-fromX,toY-fromY,radius);
+ // Stop at the globe's limb if the pointer leaves its projected disk.
+ const length=Math.hypot(toX,toY),limit=radius*.999999;
+ if(length>limit){toX*=limit/length;toY*=limit/length;}
+ return placeSpherePoint(view,point,radius,toX,toY)??{x:view.x,y:view.y};
 }
 
 // Equatorial texel spacing at the globe center: 2πR / native world width.

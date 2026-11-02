@@ -217,6 +217,11 @@
                 </button>
                 <div class="canvas-readouts">
                     <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div></div>
+                    <div class="canvas-right-readouts">
+                    <div id="distance-scale" class="distance-scale" role="img" aria-label="Distance scale at the center of the view" title="Distance at the center of the view">
+                        <span id="distance-scale-label"></span>
+                        <span id="distance-scale-line"></span>
+                    </div>
                     <div id="canvas-location-stack" class="canvas-location-stack" hidden>
                         <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
                             <div id="cursor-readout" class="probe-readout" hidden>
@@ -240,6 +245,7 @@
                                 <dt>Elevation</dt><dd><span id="canvas-highlight-elevation">—</span> ± <span id="canvas-highlight-width">—</span></dd>
                             </dl>
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>
