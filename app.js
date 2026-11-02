@@ -1,3 +1,4 @@
+import {googleMapsUrl} from './google-maps.js';
 import {distanceScale} from './scale-bar.js';
 import {highlightPulse,pulseElapsedAtElevation} from './highlight-pulse.js';
 import {HoverHighlightFilter} from './hover-highlight.js';
@@ -21,7 +22,18 @@ const view={x:.5,y:.42,zoom:2};
 try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=boundedSphereY(saved[2]);}}catch{}
 let device,context,legendContext,swatchContext,renderer,format,toneMapping,colorSpace='display-p3',tiles=[],cache=new Map(),active=0,queue=[],frame=0,dpr=1,width=1,height=1,min=-11000,max=8850,metadata;
 let sphereZoom=0,globeCamera=null;
-const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1),highlightTransition=new SineTransition(0);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+function updateGoogleMapsLink(){
+ const rect=canvas.getBoundingClientRect();
+ const zoom=isSphere()?mapZoomFromSphereZoom(sphereZoom,view.y,rect.width,rect.height):view.zoom;
+ for(const id of ['google-maps','fullscreen-google-maps'])$(id).href=googleMapsUrl(view,zoom);
+}
+for(const id of ['google-maps','fullscreen-google-maps']){
+ $(id).addEventListener('click',updateGoogleMapsLink);
+ $(id).addEventListener('contextmenu',updateGoogleMapsLink);
+ $(id).href=googleMapsUrl(view);
+}
+
+const locks={min:false,max:false},exposureTargets={min,max},exposureTweens={min:new ExposureTransition(min),max:new ExposureTransition(max)},edgeTransition=new SineTransition(1),highlightTransition=new SineTransition(0),waterTransition=new SineTransition(0);const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const sliderDomain={min:new SineTransition(-12000),max:new SineTransition(9000)};let viewBounds={min:-12000,max:9000};
 let shiftHoverHeld=false,shiftHoverElevation=null;
 let pulseStart=0,pulseElevation=null,pulseTimer=0,pulseSweeping=false;
@@ -68,7 +80,7 @@ let highlightElevationLocked=true,highlightPosition=.5,pinnedElevation=null,prev
 const fallback={land:{tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18},sea:{tiles:['https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18,schema:1}};
 const mapOverlay=new MapOverlay(requestRender,message=>{$('map-status').textContent=message;});
 function requestRender(){if(!frame)frame=requestAnimationFrame(time=>{frame=0;if(viewDirty){viewDirty=false;updateViewNow();}render(time);});}
-function controls(){applySliderDomain();for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
+function controls(){applySliderDomain();for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;$(id+'-sea').setAttribute('aria-pressed',(id==='min'?min:max)===0);} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
 function reportGebco(){
  if(!metadata)return;
  const size=Math.max(metadata.land.tileSize||512,metadata.sea.tileSize||512),now=performance.now();
@@ -193,6 +205,7 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  const swatch=$('highlight-swatch'),swatchSize=Math.max(1,Math.round(12*dpr));if(swatch.width!==swatchSize)swatch.width=swatchSize;if(swatch.height!==swatchSize)swatch.height=swatchSize;
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
  globeCamera=isSphere()?sphereCamera(view,width,height,dpr,sphereZoom):null;
+ updateGoogleMapsLink();
  const distanceBar=distanceScale(view,width,globeCamera?globeCamera.radius/dpr:null);$('distance-scale-label').textContent=distanceBar.label;$('distance-scale-line').style.width=`${distanceBar.width}px`;
 
  const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});const needed=new Set(requested.map(t=>t.key));queue=[];
@@ -227,13 +240,13 @@ function movingView(time){return pointers.size>0||momentumFrame!==0||navigationF
 function advanceExposure(time){
  const moving=movingView(time);
  if(reducedMotion.matches){exposureTweens.min.snap(exposureTargets.min);exposureTweens.max.snap(exposureTargets.max);}
- const nextMin=locks.min?min:exposureTweens.min.advance(time,moving),nextMax=locks.max?max:exposureTweens.max.advance(time,moving);
+ const nextMin=exposureTweens.min.advance(time,moving),nextMax=exposureTweens.max.advance(time,moving);
  if(nextMin!==min||nextMax!==max){min=nextMin;max=Math.max(nextMin+1/256,nextMax);controls();}
- return (!locks.min&&exposureTweens.min.active(time))||(!locks.max&&exposureTweens.max.active(time));
+ return exposureTweens.min.active(time)||exposureTweens.max.active(time);
 }
 function retargetExposure(time){const moving=movingView(time);exposureTweens.min.retarget(exposureTargets.min,time,moving);exposureTweens.max.retarget(exposureTargets.max,time,moving);}
 function render(time=performance.now()){
- if(!renderer||!metadata)return;const easing=advanceExposure(time),domainEasing=advanceSliderDomain(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);updatePulse(time);updateProbe();const highlightTarget=highlightActive()?1:0;
+ if(!renderer||!metadata)return;const easing=advanceExposure(time),domainEasing=advanceSliderDomain(time);if(reducedMotion.matches)edgeTransition.snap($('edges').checked?1:0);if(reducedMotion.matches)waterTransition.snap($('water').checked?1:0);updatePulse(time);updateProbe();const highlightTarget=highlightActive()?1:0;
  highlightTransition.retarget(highlightTarget,time);
  if(reducedMotion.matches)highlightTransition.snap(highlightTarget);
  const highlightEasing=advanceHighlightState(time);
@@ -248,7 +261,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,waterOpacity:waterTransition.valueAt(time),sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
@@ -259,7 +272,7 @@ function render(time=performance.now()){
    retargetExposure(now);controls();requestRender();
   }else if(exposureDirty)requestRender();
  }});
- if(started)exposureDirty=false;if(pulseSweeping||easing||domainEasing||highlightEasing||edgeTransition.active(time)||highlightTransition.active(time))requestRender();
+ if(started)exposureDirty=false;if(pulseSweeping||easing||domainEasing||highlightEasing||edgeTransition.active(time)||waterTransition.active(time)||highlightTransition.active(time))requestRender();
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');swatchContext=$('highlight-swatch').getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format,alphaMode:'opaque'});}
  $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext,swatchContext);
@@ -268,21 +281,54 @@ function setControlExpansion(id,open){const element=$(id);if(element.dataset.ope
 function syncColorRangeMode(){const automatic=!locks.min&&!locks.max;$('auto-color-range').checked=automatic;setControlExpansion('elevation-range-controls',!automatic);}
 function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=`${locked?'Unlock':'Lock'} ${id==='min'?'minimum':'maximum'} elevation`;button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=`${locked?'Resume':'Pause'} automatic ${id==='min'?'minimum':'maximum'} elevation adjustment`;$(id).closest('.slider-control').classList.toggle('is-locked',locked);if(locked){exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);}syncColorRangeMode();}
 $('auto-color-range').addEventListener('change',()=>{
+ seaLevelRestore.min=null;seaLevelRestore.max=null;
  const automatic=$('auto-color-range').checked;
  advanceExposure(performance.now());exposureConfig++;
  setLocked('min',!automatic);setLocked('max',!automatic);
  invalidateTerrain();controls();requestRender();
 });
 $('auto-slider-range').addEventListener('change',()=>{retargetSliderDomain();if($('auto-slider-range').checked)invalidateTerrain();requestRender();});
+const seaLevelRestore={min:null,max:null};
 for(const id of ['min','max']){
  $(id).addEventListener('input',()=>{
+  seaLevelRestore[id]=null;
   if(id==='min'){min=Math.min(Number($('min').value),max-1);exposureTargets.max=Math.max(exposureTargets.max,min+1/256);}else{max=Math.max(Number($('max').value),min+1);exposureTargets.min=Math.min(exposureTargets.min,max-1/256);}
 
   setLocked(id,true);const other=id==='min'?'max':'min';if(exposureTweens[other].target!==exposureTargets[other])exposureTweens[other].start(other==='min'?min:max,exposureTargets[other],performance.now());controls();requestRender();
  });
- $(id+'-lock').addEventListener('click',()=>{setLocked(id,!locks[id]);exposureDirty=true;controls();requestRender();});
+ $(id+'-lock').addEventListener('click',()=>{seaLevelRestore[id]=null;setLocked(id,!locks[id]);exposureDirty=true;controls();requestRender();});
+ $(id+'-sea').addEventListener('click',()=>{
+  const now=performance.now();advanceExposure(now);exposureConfig++;
+  const from={min,max};
+  const saved=seaLevelRestore[id],other=id==='min'?'max':'min';
+  const before={min:{value:locks.min?exposureTargets.min:min,locked:locks.min},max:{value:locks.max?exposureTargets.max:max,locked:locks.max}};
+  if(saved){
+   seaLevelRestore[id]=null;
+   if(id==='min')min=saved.before.min.value;else max=saved.before.max.value;
+   // Undo a range adjustment too, unless that endpoint has since changed.
+   if(saved.adjustedOther&&before[other].value===saved.appliedOther&&before[other].locked===saved.before[other].locked){
+    if(other==='min')min=saved.before.min.value;else max=saved.before.max.value;
+    setLocked(other,saved.before[other].locked);
+   }
+   if(min>=max){if(id==='min')max=min+1;else min=max-1;}
+   setLocked(id,saved.before[id].locked);
+  }else{
+   if(id==='min'){min=0;if(max<=0)max=1;}else{max=0;if(min>=0)min=-1;}
+   setLocked(id,true);
+   const appliedOther=other==='min'?min:max;
+   seaLevelRestore[id]={before,appliedOther,adjustedOther:appliedOther!==before[other].value};
+  }
+  for(const key of ['min','max']){
+   const value=key==='min'?min:max;
+   exposureTargets[key]=value;
+   if(reducedMotion.matches)exposureTweens[key].snap(value);
+   else exposureTweens[key].start(from[key],value,now);
+  }
+  if(!reducedMotion.matches){min=from.min;max=from.max;}
+  invalidateTerrain();controls();requestRender();
+ });
 }
-$('water').addEventListener('change',()=>{report();exposureConfig++;invalidateTerrain();requestRender();});
+$('water').addEventListener('change',()=>{waterTransition.retarget($('water').checked?1:0,performance.now());report();exposureConfig++;invalidateTerrain();requestRender();});
 $('edges').addEventListener('change',()=>{edgeTransition.retarget($('edges').checked?1:0,performance.now());requestRender();});
 const meters=value=>value.toLocaleString(undefined,{maximumFractionDigits:3})+' m';
 function highlightActive(){return shiftHoverElevation!==null||hovering||$('highlight').checked;}
@@ -300,7 +346,7 @@ function setHighlightElevationLocked(locked){
 function syncPulseControls(){
  const running=pulseRunning();
  if(running!==lastPulseRunning){setHighlightElevationLocked(!running);lastPulseRunning=running;}
- $('highlight-elevation-setting').hidden=$('pulse').checked;
+ setControlExpansion('highlight-elevation-expander',!$('pulse').checked);
 }
 function manualHighlightSelection(){
  $('pulse').checked=false;setHighlightElevationLocked(true);updatePulse(performance.now());syncPulseControls();
@@ -437,7 +483,7 @@ async function downloadImage(){
 }
 for(const button of downloadButtons)button.addEventListener('click',downloadImage);
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;$('fullscreen-google-maps').hidden=!active;updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}
@@ -628,10 +674,36 @@ window.addEventListener('keyup',event=>{
 window.addEventListener('blur',stopHighlightMotion);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHighlightMotion();});
 document.addEventListener('focusin',event=>{if(searchHasKeyboardFocus(event))stopHighlightMotion();});
+function restoreSidebarDefaults(){
+ seaLevelRestore.min=null;seaLevelRestore.max=null;
+ stopHighlightMotion();
+ hovering=false;highlightPreviewOnly=false;shiftHoverHeld=false;shiftHoverElevation=null;
+ pinnedElevation=null;highlightPosition=.5;hoverPosition=.5;previewElevation=null;
+ if(lockedHighlightWidth!==null)$('highlight-width-lock').click();
+ highlightFraction=1/8;
+ setHighlightElevationLocked(true);
+ for(const id of ['water','auto-slider-range','pulse','highlight','edges']){
+  const control=$(id);control.checked=control.defaultChecked;
+  control.dispatchEvent(new Event('change',{bubbles:true}));
+ }
+ $('palette').selectedIndex=[...$('palette').options].findIndex(option=>option.defaultSelected);
+ $('palette').dispatchEvent(new Event('change',{bubbles:true}));
+ $('palette-flip').setAttribute('aria-pressed','false');
+ $('auto-color-range').checked=true;
+ $('auto-color-range').dispatchEvent(new Event('change',{bubbles:true}));
+ highlightStateReady=false;hoverFilterActive=false;highlightLabel();controls();requestRender();
+}
 // View shortcuts share the controls' event paths, including animated edges
 // and water/exposure invalidation. Only search typing and browser modifiers are excluded.
 window.addEventListener('keydown',event=>{
  if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
+ if(event.code==='KeyG'||event.code==='KeyR'||event.code==='Digit0'||event.code==='Numpad0'){
+  event.preventDefault();if(event.repeat)return;
+  if(event.code==='KeyG')$('google-maps').click();
+  else if(event.code==='KeyR')restoreSidebarDefaults();
+  else $(event.shiftKey?'max-sea':'min-sea').click();
+  return;
+ }
  if(event.key.toLowerCase()==='f'){
   event.preventDefault();
   if(!event.repeat){

@@ -20,8 +20,8 @@
             </div>
             <div class="header-right">
                 <div class="map-actions"><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
-                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
-                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
+                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
+                        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
                     </button><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
                         title="Enter fullscreen"><svg class="expand-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -45,7 +45,7 @@
                 <div id="elevation-range-controls" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner">
                 <label class="toggle">Auto Slider Range <input id="auto-slider-range" type="checkbox" role="switch" checked></label>
                 <div class="slider-control">
-                    <div class="control-heading"><label for="min">Minimum Elevation</label><span
+                    <div class="control-heading"><label for="min">Min Elevation</label><span
                             class="value-edit"><input id="min-number" aria-label="Minimum Elevation value" type="number"
                                 step="any" value="-11000"><span class="unit">m</span><span class="steppers"><button
                                     type="button" data-step-slider="min" data-step-dir="1"
@@ -54,7 +54,7 @@
                                     </svg></button><button type="button" data-step-slider="min" data-step-dir="-1"
                                     aria-label="Decrease minimum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
                                         <path d="m4 6 4 4 4-4" />
-                                    </svg></button></span></span><button id="min-lock" type="button" class="icon-button lock-button"
+                                    </svg></button></span></span><button id="min-sea" class="icon-button sea-button" type="button" aria-label="Set minimum elevation to sea level and lock" title="Set to 0 m and lock"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 9c2 1.4 3.8.3 5.3-2.1C9.2 3.8 12 2.2 14 4c-2.9-.5-3.8 2.6-1.4 4.6 1.5 1.2 3.4 1.5 5.4.4M2 12.5q2.67 3.4 5.33 0 2.67 3.4 5.34 0 2.67 3.4 5.33 0M2 16q2.67 3.4 5.33 0 2.67 3.4 5.34 0 2.67 3.4 5.33 0"/></svg></button><button id="min-lock" type="button" class="icon-button lock-button"
                             aria-pressed="false" aria-label="Lock minimum elevation" title="Lock minimum elevation"><svg
                                 viewBox="0 0 20 20" aria-hidden="true">
                                 <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
@@ -66,7 +66,7 @@
                             value="-11000"></div>
                 </div><output id="min-value" hidden></output>
                 <div class="slider-control">
-                    <div class="control-heading"><label for="max">Maximum Elevation</label><span
+                    <div class="control-heading"><label for="max">Max Elevation</label><span
                             class="value-edit"><input id="max-number" aria-label="Maximum Elevation value" type="number"
                                 step="any" value="8850"><span class="unit">m</span><span class="steppers"><button
                                     type="button" data-step-slider="max" data-step-dir="1"
@@ -75,7 +75,7 @@
                                     </svg></button><button type="button" data-step-slider="max" data-step-dir="-1"
                                     aria-label="Decrease maximum elevation"><svg viewBox="0 0 16 16" aria-hidden="true">
                                         <path d="m4 6 4 4 4-4" />
-                                    </svg></button></span></span><button id="max-lock" type="button" class="icon-button lock-button"
+                                    </svg></button></span></span><button id="max-sea" class="icon-button sea-button" type="button" aria-label="Set maximum elevation to sea level and lock" title="Set to 0 m and lock"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 9c2 1.4 3.8.3 5.3-2.1C9.2 3.8 12 2.2 14 4c-2.9-.5-3.8 2.6-1.4 4.6 1.5 1.2 3.4 1.5 5.4.4M2 12.5q2.67 3.4 5.33 0 2.67 3.4 5.34 0 2.67 3.4 5.33 0M2 16q2.67 3.4 5.33 0 2.67 3.4 5.34 0 2.67 3.4 5.33 0"/></svg></button><button id="max-lock" type="button" class="icon-button lock-button"
                             aria-pressed="false" aria-label="Lock maximum elevation" title="Lock maximum elevation"><svg
                                 viewBox="0 0 20 20" aria-hidden="true">
                                 <rect x="4.5" y="8.5" width="11" height="9" rx="1.5" />
@@ -109,7 +109,7 @@
                 <div id="highlight-panel" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner"><fieldset id="highlight-controls" disabled>
                     <legend class="sr">Highlight settings</legend>
                     <label class="toggle">Pulse <input id="pulse" type="checkbox" role="switch" checked></label>
-                    <div id="highlight-elevation-setting" class="slider-control" hidden>
+                    <div id="highlight-elevation-expander" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner"><div id="highlight-elevation-setting" class="slider-control">
                         <div class="control-heading"><label for="highlight-elevation">Elevation</label><span
                                 class="value-edit"><input id="highlight-elevation-number" aria-label="Elevation value"
                                     type="number" step="any" value="-1075"><span class="unit">m</span><span
@@ -132,7 +132,7 @@
                                 </svg></button></div>
                         <div class="slider-row"><input id="highlight-elevation" type="range" min="-12000" max="9000"
                                 step="any" value="-1075"></div>
-                    </div>
+                    </div></div></div>
                     <div class="slider-control">
                         <div class="control-heading"><label for="highlight-width">Half-Width</label><span
                                 class="value-edit"><input id="highlight-width-number"
@@ -184,10 +184,12 @@
             <footer>
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
-                    <p><kbd>WASD</kbd> / <kbd>↑↓←→</kbd> Pan · <kbd>+ −</kbd> Zoom<br>
-                        <kbd>E</kbd> Edges · <kbd>H</kbd> Highlight · <kbd>U</kbd> Water · <kbd>M</kbd> Map · <kbd>O</kbd> Sphere · <kbd>F</kbd> Fullscreen<br>
-                        <kbd>, .</kbd> Highlight elevation · <kbd>Shift + , .</kbd> Half-width<br>
-                        Hold <kbd>Shift</kbd> to preview highlight · <kbd>Shift-click</kbd> to keep</p>
+                    <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Water</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
+                        <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
+                        <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
+                        <span class="key-command">Hold <kbd>Shift</kbd> to preview highlight</span> · <span class="key-command"><kbd>Shift-click</kbd> to keep</span></p>
                 </div>
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
                 <p><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
@@ -203,10 +205,11 @@
                     <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
                     <circle cx="12" cy="11" r="3.5" />
                 </svg>
+                <a id="fullscreen-google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a>
                 <button id="fullscreen-download" class="icon-button" type="button" aria-label="Download HDR AVIF"
                     title="Download full-resolution HDR AVIF" hidden disabled>
                     <svg viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"/>
+                        <path d="M10 3v9m-4-4 4 4 4-4M3 13v4h14v-4"/>
                     </svg>
                 </button>
                 <button id="fullscreen-exit" class="icon-button" type="button" aria-label="Exit fullscreen"

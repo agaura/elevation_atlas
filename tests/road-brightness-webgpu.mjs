@@ -19,10 +19,10 @@ try{
   const mask=new OffscreenCanvas(32,32),ctx=mask.getContext('2d');let revision=0;
   const half=n=>{const sign=n&32768?-1:1,e=n>>>10&31,f=n&1023;return sign*(e===0?2**-14*f/1024:2**(e-15)*(1+f/1024));};
   const decode=x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4;
-  async function sample(t,{water=false,coverage=255,roads=true}={}){
+  async function sample(t,{water=false,coverage=255,roads=true,waterOpacity}={}){
    for(let i=0;i<values.length;i+=2){values[i]=t;values[i+1]=water?-1:1;}
    device.queue.writeTexture({texture},values,{bytesPerRow:32},[4,4]);ctx.fillStyle=`rgb(${coverage},0,0)`;ctx.fillRect(0,0,32,32);
-   renderer.invalidate();renderer.render({tiles:[{key:'tile',left:0,top:0,size:32}],cache:new Map([['tile',{state:'ready',texture,size:4}]]),dpr:1,canvas,legend,min:0,max:1,palette:0,hdr:2,p3:1,emphasis:false,edges:0,noOcean:water,reduce:false,mapOverlay:roads?{canvas:mask,revision:++revision}:null});
+   renderer.invalidate();renderer.render({tiles:[{key:'tile',left:0,top:0,size:32}],cache:new Map([['tile',{state:'ready',texture,size:4}]]),dpr:1,canvas,legend,min:0,max:1,palette:0,hdr:2,p3:1,emphasis:false,edges:0,noOcean:water,waterOpacity,reduce:true,onExposure(){},mapOverlay:roads?{canvas:mask,revision:++revision}:null});
    const buffer=device.createBuffer({size:256,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),encoder=device.createCommandEncoder();encoder.copyTextureToBuffer({texture:context.getCurrentTexture(),origin:[16,16]},{buffer,bytesPerRow:256},[1,1]);device.queue.submit([encoder.finish()]);await buffer.mapAsync(GPUMapMode.READ);const value=decode(half(new Uint16Array(buffer.getMappedRange())[0]));buffer.unmap();buffer.destroy();return value;
   }
   const checks=[];
@@ -34,7 +34,9 @@ try{
   const hidden=await sample(.5,{water:true}),hiddenBase=await sample(.5,{water:true,roads:false}),partial=await sample(.5,{water:true,coverage:128});
   if(Math.abs(hidden-.08)>.002)throw Error('Hidden-water road floor');
   if(Math.abs(partial-(hiddenBase*(1-128/255)+.08*128/255))>.002)throw Error('Road mask must retain antialiasing');
-  await device.queue.onSubmittedWorkDone();texture.destroy();return {checks,hidden,partial,gpuErrors};
+  const dry=await sample(.5,{water:true,roads:false,waterOpacity:0}),wet=await sample(.5,{water:true,roads:false,waterOpacity:1}),midFade=await sample(.5,{water:true,roads:false,waterOpacity:.5});
+  if(Math.abs(midFade-(dry+wet)*.5)>.002)throw Error('Water must fade in linear light');
+  await device.queue.onSubmittedWorkDone();texture.destroy();return {checks,hidden,partial,waterFade:{dry,half:midFade,wet},gpuErrors};
  });
  assert.deepEqual(errors,[]);assert.deepEqual(result.gpuErrors,[]);console.log('PASS road luminance floor, adaptive dark-to-white gain, HDR output, hidden water, and coverage blending',result);
 }finally{await browser?.close();server.kill();}

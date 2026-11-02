@@ -59,7 +59,7 @@ fn localAngle(y:f32,x:f32)->f32{
  let c=valid(textureLoad(atlas,clamp(base+vec2i(0,1),vec2i(0),limit),layer,0),center);let d=valid(textureLoad(atlas,clamp(base+vec2i(1,1),vec2i(0),limit),layer,0),center);
  var edge = -1.;
  if(camera.lookup.w>.5&&!(level==0.&&camera.lookup.z>0.)){edge=sourceEdge(p,center.y,layer);}
- return vec2f(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),edge);
+ return vec2f(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),select(edge,select(-1.5,-2.-edge,edge>=0.),center.y<0.));
 }`;
 export async function createSpherePass(device,{historyBytes=(globalThis.matchMedia?.('(pointer: coarse)')?.matches?64:128)*1024*1024}={}){
  const format='rg32float';
