@@ -376,8 +376,8 @@ function highlightLabel(){
  }
 
  setControlExpansion('highlight-panel',active);
- $('highlight-controls').disabled=!active;const elevationControl=$('highlight-elevation');elevationControl.value=elevation;
- const widthControl=$('highlight-width');widthControl.min=Math.min((max-min)*.000001,halfWidth);widthControl.max=Math.max(max-min,halfWidth);widthControl.value=halfWidth;syncNumbers();
+ $('highlight-controls').disabled=!active;const elevationControl=$('highlight-elevation');elevationControl.value=displayedElevation;
+ const widthControl=$('highlight-width');widthControl.min=Math.min((max-min)*.000001,halfWidth,displayedWidth);widthControl.max=Math.max(max-min,halfWidth,displayedWidth);widthControl.value=displayedWidth;syncNumbers();
 }
 function previewHighlight(event){if(!hovering&&!$('highlight').checked){highlightPreviewOnly=true;$('highlight').checked=true;}const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;snapHighlightState();highlightLabel();requestRender();}
 // Keep iOS long presses on the color bar inside our pointer interaction.
@@ -498,7 +498,7 @@ async function exitFullscreen(){
  canvas.focus({preventScroll:true});
 }
 $('fullscreen-exit').addEventListener('click',exitFullscreen);
-window.addEventListener('keydown',event=>{if(event.key==='Escape')exitFullscreen();});
+window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!textFieldHasKeyboardFocus(event))exitFullscreen();});
 function isSphere(){return $('projection').checked;}
 $('projection').addEventListener('change',()=>{
  exposureConfig++;stopMomentum();stopNavigation();
@@ -545,7 +545,7 @@ canvas.addEventListener('pointerdown',e=>{
  stopMomentum();stopNavigation();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture=snapshot();lastMove=performance.now();});
 canvas.addEventListener('pointermove',e=>{
  if(shiftClickCandidate?.id===e.pointerId&&Math.hypot(e.clientX-shiftClickCandidate.x,e.clientY-shiftClickCandidate.y)>5)shiftClickCandidate=null;
- if(e.pointerType==='mouse')shiftHoverHeld=e.shiftKey;
+ if(e.pointerType==='mouse')shiftHoverHeld=e.shiftKey&&!textFieldHasKeyboardFocus({target:document.activeElement});
  cursor={x:e.clientX,y:e.clientY,inside:e.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();
  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const next=snapshot(),s=256*2**view.zoom,now=performance.now(),dt=Math.max(1,now-lastMove),dx=next.x-gesture.x,dy=next.y-gesture.y;
  if(isSphere()){
@@ -618,11 +618,16 @@ setupCanvasGestures(canvas,{
 });
 $('probe-unpin').addEventListener('click',()=>{pinnedProbe=null;requestProbeUpdate();});
 
-canvas.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')shiftHoverHeld=event.shiftKey;cursor={x:event.clientX,y:event.clientY,inside:event.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
-function searchHasKeyboardFocus(event){return Boolean(event.target.closest?.('#location-query'));}
+canvas.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')shiftHoverHeld=event.shiftKey&&!textFieldHasKeyboardFocus({target:document.activeElement});cursor={x:event.clientX,y:event.clientY,inside:event.pointerType==='mouse'&&matchMedia('(any-hover: hover)').matches};requestProbeUpdate();});canvas.addEventListener('pointerleave',()=>{cursor.inside=false;requestProbeUpdate();});
+function textFieldHasKeyboardFocus(event){
+ const target=event.target;
+ if(target?.isContentEditable||target?.closest?.('textarea,[role="textbox"]'))return true;
+ const input=target?.closest?.('input');
+ return Boolean(input&&!input.matches('[type="checkbox"],[type="radio"],[type="range"],[type="button"],[type="submit"],[type="reset"],[type="image"],[type="color"],[type="file"],[type="hidden"]'));
+}
 // Shift previews never change the saved highlight toggle, elevation or locks.
 window.addEventListener('keydown',event=>{
- if(event.key!=='Shift'||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
+ if(event.key!=='Shift'||event.ctrlKey||event.metaKey||event.altKey||textFieldHasKeyboardFocus(event))return;
  shiftHoverHeld=true;requestProbeUpdate();
 });
 window.addEventListener('keyup',event=>{if(event.key==='Shift'){shiftHoverHeld=false;requestProbeUpdate();}},{capture:true});
@@ -673,7 +678,7 @@ window.addEventListener('keyup',event=>{
 },{capture:true});
 window.addEventListener('blur',stopHighlightMotion);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHighlightMotion();});
-document.addEventListener('focusin',event=>{if(searchHasKeyboardFocus(event))stopHighlightMotion();});
+document.addEventListener('focusin',event=>{if(textFieldHasKeyboardFocus(event)){stopHighlightMotion();endShiftHover();}});
 function restoreSidebarDefaults(){
  seaLevelRestore.min=null;seaLevelRestore.max=null;
  stopHighlightMotion();
@@ -694,9 +699,9 @@ function restoreSidebarDefaults(){
  highlightStateReady=false;hoverFilterActive=false;highlightLabel();controls();requestRender();
 }
 // View shortcuts share the controls' event paths, including animated edges
-// and water/exposure invalidation. Only search typing and browser modifiers are excluded.
+// and water/exposure invalidation. Text/number entry and browser modifiers are excluded.
 window.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
+ if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||textFieldHasKeyboardFocus(event))return;
  if(event.code==='KeyG'||event.code==='KeyR'||event.code==='Digit0'||event.code==='Numpad0'){
   event.preventDefault();if(event.repeat)return;
   if(event.code==='KeyG')$('google-maps').click();
@@ -745,11 +750,11 @@ function navigationTick(time){
  if(active.size||Math.hypot(navX,navY)>.1||Math.abs(navZoom)>.0005)navigationFrame=requestAnimationFrame(navigationTick);else stopNavigation();
 }
 window.addEventListener('keydown',event=>{
- const action=keyAction(event.code);if(!action||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||searchHasKeyboardFocus(event))return;
+ const action=keyAction(event.code);if(!action||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||textFieldHasKeyboardFocus(event))return;
  event.preventDefault();if(heldKeys.has(event.code))return;stopMomentum();heldKeys.set(event.code,{action,start:performance.now()});if(!navigationFrame){navigationTime=performance.now();navigationFrame=requestAnimationFrame(navigationTick);}
 },{capture:true});
 window.addEventListener('keyup',event=>{const key=heldKeys.get(event.code);if(!key)return;heldKeys.delete(event.code);if(performance.now()<key.start+90)tapUntil.set(key.action,key.start+90);},{capture:true});
-document.addEventListener('focusin',event=>{if(searchHasKeyboardFocus(event))stopNavigation();});
+document.addEventListener('focusin',event=>{if(textFieldHasKeyboardFocus(event))stopNavigation();});
 window.addEventListener('blur',stopNavigation);document.addEventListener('visibilitychange',()=>{if(document.hidden)stopNavigation();});
 init().catch(e=>{$('message').textContent=e.message;console.error(e);});
 
