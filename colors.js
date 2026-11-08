@@ -361,6 +361,47 @@ fn colorMapTropicalFire(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f
   return mix(lab, saturated, emphasis);
 }
 
+fn colorMapAmber(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emphasisEnabled: bool) -> vec3<f32> {
+  let t = - t0;
+  let coverage = - 0.1 - 0.15;
+  let luminanceCoverage = 0.5;
+  let luminanceCycle = mix((cosineWave(luminanceCoverage * t + 1.5) + 1.0) * 0.5, (triangleWave(luminanceCoverage * t + 1.5) + 1.0) * 0.5, 1.);
+  let lightness = mix(0.2, 1.175 + 0.10 * t, luminanceCycle);
+  let chromaStart = 0.04;
+  let chromaMid = 0.15;
+  let chromaEnd = 0.1;
+  let chromaMidT = 0.5;
+  let oneMinusChromaMidT = 1.0 - chromaMidT;
+  let chromaControl = (
+    chromaMid -
+    oneMinusChromaMidT * oneMinusChromaMidT * chromaStart -
+    chromaMidT * chromaMidT * chromaEnd
+  ) / (2.0 * oneMinusChromaMidT * chromaMidT);
+  let chroma = mix(
+    mix(chromaStart, chromaControl, luminanceCycle),
+    mix(chromaControl, chromaEnd, luminanceCycle),
+    luminanceCycle
+  );
+  let angleOffset = 1.234 - 0.63;
+  let angle = t * 6.2831853 * coverage + angleOffset;
+  var lab = vec3<f32>(lightness, chroma * cos(angle), chroma * sin(angle));
+  let emphasis = emphasisWeight;
+  let minimumHdrLightness = 0.25;
+  let potentialMax = oklabToLinearP3(lab);
+  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
+  let hdrFactor = hdrScale;
+  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
+  let peak = max(boundary.x, max(boundary.y, boundary.z));
+  let saturatedBoundaryP3 = hdrFactor * boundary / max(peak, 0.000001);
+  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
+  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
+  let scale = clamp(2. / saturatedY, 1.25, 1.75);
+  saturatedP3 *= scale;
+  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
+
+  return mix(lab, saturated, emphasis);
+}
+
 `;
 
 export const COLOR_MAPS = [
@@ -368,6 +409,11 @@ export const COLOR_MAPS = [
     "id": 0,
     "label": "Grayscale",
     "shader": null
+  },
+  {
+    "id": 5,
+    "label": "Amber",
+    "shader": "colorMapAmber"
   },
   {
     "id": 1,
