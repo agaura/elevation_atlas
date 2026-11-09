@@ -14,3 +14,12 @@ test('search fits geocoder extents and produces equivalent flat/sphere center sc
 test('geocoder results keep disambiguating addresses and reject invalid geographic positions',()=>{
  const result=geocoderLocations([{geometry:{type:'Point',coordinates:[-77,39]},properties:{name:'White House',housenumber:'1600',street:'Pennsylvania Ave',city:'Washington',country:'United States',extent:[-77.1,39.1,-76.9,38.9]}},{geometry:{type:'Point',coordinates:[200,99]}}]);assert.equal(result.length,1);assert.match(result[0].details,/1600 Pennsylvania Ave/);assert.equal(result[0].longitude,-77);assert.deepEqual(result[0].bounds,[-77.1,39.1,-76.9,38.9]);
 });
+
+test('planetary feature navigation fits feature diameter using the selected body radius',()=>{
+ const location={latitude:18.6528,longitude:-133.8025,diameterKm:610.13};
+ const d=searchDestination(location,1000,800,{planetRadius:3396190,allowPolar:true});
+ const radius=.46*800*2**d.sphereZoom;
+ assert.ok(Math.abs(2*radius*Math.sin(location.diameterKm*1000/(2*3396190))-(800-80)*.55)<1e-6);
+ const polar=searchDestination({...location,latitude:89},1000,800,{planetRadius:3396190,allowPolar:true});
+ assert.ok(Number.isFinite(polar.y)&&Number.isFinite(polar.sphereZoom));
+});

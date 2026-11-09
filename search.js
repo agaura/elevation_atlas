@@ -1,9 +1,10 @@
+import {searchPlanetaryFeatures} from './planetary-search.js';
 import {wrap} from './terrain.js';
 export const GEOCODER_URL='https://photon.komoot.io/api/';
 const limit=85.05112878;
-function coordinate(latitude,longitude){
+function coordinate(latitude,longitude,allowPolar=false){
  if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)throw Error('Latitude must be −90 to 90; longitude −180 to 180.');
- if(Math.abs(latitude)>limit)throw Error('Terrain coverage ends at ±85.05113° latitude.');
+ if(!allowPolar&&Math.abs(latitude)>limit)throw Error('Terrain coverage ends at ±85.05113° latitude.');
  return {latitude,longitude};
 }
 export function parseCoordinates(query){
@@ -18,8 +19,14 @@ export function parseCoordinates(query){
  return null;
 }
 export function mercator(latitude,longitude){return {x:wrap((longitude+180)/360,1),y:(1-Math.log(Math.tan(Math.PI/4+latitude*Math.PI/360))/Math.PI)/2};}
-export function searchDestination(location,width,height){
- coordinate(location.latitude,location.longitude);const point=mercator(location.latitude,location.longitude);let zoom=location.zoom??14;
+export function searchDestination(location,width,height,{planetRadius=null,allowPolar=false}={}){
+ coordinate(location.latitude,location.longitude,allowPolar);const point=mercator(Math.max(-89.999999,Math.min(89.999999,location.latitude)),location.longitude);let zoom=location.zoom??14;
+ if(planetRadius&&location.diameterKm>0){
+  const angularSize=Math.min(Math.PI,location.diameterKm*1000/planetRadius);
+  const radius=Math.max(80,Math.min(width,height)-80)*.55/(2*Math.sin(angularSize/2));
+  zoom=Math.log2(2*Math.PI*radius*Math.max(1e-6,Math.cos(location.latitude*Math.PI/180))/256);
+  return {...point,zoom,sphereZoom:Math.log2(radius/(.46*Math.max(1,Math.min(width,height))))};
+ }
  if(location.bounds?.length===4&&location.bounds.every(Number.isFinite)){
   const [west,y1,east,y2]=location.bounds,north=Math.min(limit,Math.max(y1,y2)),south=Math.max(-limit,Math.min(y1,y2));
   const dx=Math.abs(east-west)>=360?1:wrap(east-west,360)/360,dy=Math.abs(mercator(north,0).y-mercator(south,0).y);
@@ -38,7 +45,7 @@ export function geocoderLocations(features){
   return [{latitude,longitude,name,details,zoom,bounds:p.extent||f.bbox}];
  });
 }
-export function setupSearch(onNavigate){
+export function setupSearch(onNavigate,{canGeocode=()=>true,getBody=()=>'earth'}={}){
  const form=document.getElementById('location-search'),input=document.getElementById('location-query'),results=document.getElementById('search-results'),status=document.getElementById('search-status');let controller,generation=0,choices=[],lastQuery='';const cache=new Map();
  function clear(){choices=[];results.replaceChildren();results.hidden=true;}
  function select(location){generation++;controller?.abort();input.value=location.name||`${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`;clear();status.textContent='';onNavigate(location);}
@@ -47,11 +54,16 @@ export function setupSearch(onNavigate){
  form.addEventListener('submit',async event=>{
   event.preventDefault();const query=input.value.trim();if(!query)return;
   if(query===lastQuery&&choices.length){select(choices[0]);return;}
-  controller?.abort();controller=new AbortController();const token=++generation;clear();status.textContent='';
+  controller?.abort();controller=new AbortController();const token=++generation,body=getBody();clear();status.textContent='';
   try{
    const point=parseCoordinates(query);if(point){select(point);return;}
-   status.textContent='Searching…';let locations=cache.get(query.toLocaleLowerCase());
+   status.textContent='Searching…';let locations;
+   if(body!=='earth')locations=await searchPlanetaryFeatures(body,query);
+   else{
+   if(!canGeocode())throw Error('Enter latitude, longitude for this body. Address search is available on Earth.');
+   locations=cache.get(query.toLocaleLowerCase());
    if(!locations){const url=new URL(GEOCODER_URL);url.searchParams.set('q',query);url.searchParams.set('limit','5');url.searchParams.set('lang','en');const response=await fetch(url,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)])});if(!response.ok)throw Error('Address search is unavailable. Try again.');const data=await response.json();locations=geocoderLocations(data.features||[]);if(token!==generation)return;cache.set(query.toLocaleLowerCase(),locations);if(cache.size>32)cache.delete(cache.keys().next().value);}
+   }
    if(token!==generation)return;if(!locations.length){status.textContent='No locations found.';return;}if(locations.length===1){select(locations[0]);return;}
    choices=locations;lastQuery=query;status.textContent='Choose a result';results.hidden=false;
    for(const location of locations){const li=document.createElement('li'),button=document.createElement('button'),name=document.createElement('span'),detail=document.createElement('small');button.type='button';name.textContent=location.name;detail.textContent=location.details;button.append(name,detail);button.addEventListener('click',()=>select(location));button.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const buttons=[...results.querySelectorAll('button')],i=buttons.indexOf(button);buttons[(i+(event.key==='ArrowDown'?1:buttons.length-1))%buttons.length].focus();}if(event.key==='Escape'){clear();input.focus();event.stopPropagation();}});li.append(button);results.append(li);}

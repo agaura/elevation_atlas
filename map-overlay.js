@@ -1,3 +1,4 @@
+import {loadPlanetaryNames,planetaryLabelCandidates} from './planetary-labels.js';
 import {retryDelay} from './request-policy.js';
 import {visibleTiles,wrap} from './terrain.js';
 import {sphereTiles} from './sphere.js';
@@ -51,6 +52,40 @@ export function placeStyle(properties,zoom){
  if(kind==='village')return zoom>=10?{size:10,weight:400,family:uiFont,color:mapLabelColor,priority:5,roads:true}:null;
  return zoom>=13?{size:10,weight:400,family:uiFont,color:mapLabelColor,priority:6,roads:true}:null;
 }
+// Natural-feature labels share map ink and collision placement with settlements.
+export function geographicStyle(layer,properties,zoom){
+ const kind=properties.class,rank=Number(properties.rank)||1;
+ const base={weight:400,family:uiFont,spacing:.25,color:mapLabelColor};
+ if(layer==='mountain_peak')return zoom>=11&&rank<=(zoom<12?3:zoom<13?6:20)?{...base,size:10.5,priority:6.5+rank/100}:null;
+ if(layer==='park')return zoom>=(kind==='national_park'?8:11)?{...base,size:10.5,spacing:.45,priority:8}:null;
+ if(layer==='waterway')return zoom>=({river:7,canal:11,stream:13}[kind]??14)?{...base,size:10,priority:7.5}:null;
+ if(layer==='water_name')return zoom>=6?{...base,size:10.5,priority:7}:null;
+ return null;
+}
+// Measure a whole visible run, rather than requiring one long source segment.
+// This makes densely tessellated rivers labelable without stretching their names.
+export function lineLabelAnchor(paths,project,textWidth){
+ let best=[],bestLength=0;
+ for(const path of paths){
+  let run=[],length=0;
+  const finish=()=>{if(length>bestLength){best=run;bestLength=length;}run=[];length=0;};
+  for(let i=0;i<path.length;i+=2){const point=project(path[i],path[i+1]);if(!point){finish();continue;}if(run.length)length+=Math.hypot(point[0]-run.at(-1)[0],point[1]-run.at(-1)[1]);run.push(point);}
+  finish();
+ }
+ if(bestLength<textWidth+12)return null;
+ const at=target=>{let remaining=target;for(let i=1;i<best.length;i++){const a=best[i-1],b=best[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);if(length>=remaining&&length>0){const f=remaining/length;return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];}remaining-=length;}return best.at(-1);};
+ const center=bestLength/2,a=at(center-textWidth/2),b=at(center+textWidth/2);
+ if(Math.hypot(b[0]-a[0],b[1]-a[1])<textWidth*.8)return null;
+ let angle=Math.atan2(b[1]-a[1],b[0]-a[0]);if(angle>Math.PI/2)angle-=Math.PI;if(angle< -Math.PI/2)angle+=Math.PI;
+ return {point:at(center),angle};
+}
+export function geographicPoint(feature){
+ const path=feature.paths[0];if(!path?.length)return null;
+ if(feature.type!==3)return path.slice(0,2);
+ let area=0,x=0,y=0;
+ for(let i=0;i<path.length;i+=2){const j=(i+2)%path.length,cross=path[i]*path[j+1]-path[j]*path[i+1];area+=cross;x+=(path[i]+path[j])*cross;y+=(path[i+1]+path[j+1])*cross;}
+ return Math.abs(area)>1e-8?[x/(3*area),y/(3*area)]:path.slice(0,2);
+}
 export class RoadContext{
  constructor(width,height,targets=null){
   this.width=width;this.height=height;this.cells=new Map();this.targets=targets;this.columns=Math.ceil(width/32)+1;
@@ -90,13 +125,26 @@ export class RoadContext{
  }
 }
 export class MapOverlay{
- constructor(onChange,onStatus){this.onChange=onChange;this.onStatus=onStatus;this.enabled=false;this.textWidths=new Map();this.entries=new Map();this.pending=new Map();this.queue=[];this.serial=0;this.active=0;this.dirty=true;this.revision=0;this.metrics=new OffscreenCanvas(1,1).getContext('2d');}
+ constructor(onChange,onStatus){this.onChange=onChange;this.onStatus=onStatus;this.enabled=false;this.body='earth';this.catalogs=new Map();this.textWidths=new Map();this.entries=new Map();this.pending=new Map();this.queue=[];this.serial=0;this.active=0;this.dirty=true;this.revision=0;this.metrics=new OffscreenCanvas(1,1).getContext('2d');}
+ setBody(body){
+  if(body===this.body)return;
+  this.enable(false);this.queue=[];this.needed=new Set();this.body=body;this.signature='';
+ }
  async enable(enabled){
   this.enabled=enabled;this.dirty=true;
   if(!enabled){clearTimeout(this.retryTimer);this.retryTimer=null;for(const [id,pending] of this.pending){this.worker?.postMessage({id,cancel:true});this.entries.delete(pending.key);}this.pending.clear();this.active=0;this.queue=[];this.scene=null;this.signature='';this.revision++;this.onStatus('');return;}
   if(!this.fontsReady)this.fontsReady=Promise.all([document.fonts.load('500 14px "Atlas Rajdhani"'),document.fonts.load('400 12px "Atlas Plex Mono"')]).catch(()=>{}).then(()=>{this.fontRevision=(this.fontRevision||0)+1;this.textWidths.clear();this.dirty=true;if(this.enabled)this.onChange();});
+  if(this.body!=='earth'){
+   const body=this.body;
+   try{
+    if(!this.catalogs.has(body)){this.onStatus('Loading planetary names…');this.catalogs.set(body,await loadPlanetaryNames(body));}
+    await this.fontsReady;
+    if(this.enabled&&this.body===body){this.onStatus('');this.dirty=true;this.onChange();}
+   }catch(error){if(this.enabled&&this.body===body)this.onStatus(`Names unavailable: ${error.message}. Toggle Map Labels to retry.`);}
+   return;
+  }
   if(!this.worker){this.worker=new Worker(new URL('./map.worker.js',import.meta.url),{type:'module'});this.worker.onmessage=event=>this.loaded(event.data);}
-  if(!this.metadata){this.onStatus('Loading map data…');try{const response=await fetch(MAP_TILEJSON,{signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error(`Map metadata HTTP ${response.status}`);const metadata=await response.json();if(!metadata.tiles?.length)throw Error('Map tile source unavailable');this.metadata=metadata;}catch(error){if(this.enabled)this.onStatus(`Map unavailable: ${error.message}`);return;}}
+  if(!this.metadata){this.onStatus('Loading map data…');try{const response=await fetch(MAP_TILEJSON,{signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error(`Map metadata HTTP ${response.status}`);const metadata=await response.json();if(!metadata.tiles?.length)throw Error('Map tile source unavailable');this.metadata=metadata;}catch(error){if(this.enabled&&this.body==='earth')this.onStatus(`Map unavailable: ${error.message}`);return;}}
   await this.fontsReady;if(this.enabled){this.dirty=true;this.onChange();}
  }
  loaded(data){
@@ -115,32 +163,32 @@ export class MapOverlay{
   while(!globalThis.document?.hidden&&this.enabled&&this.active<4&&this.queue.length){const entry=this.queue.shift();if(entry.state!=='queued')continue;entry.state='loading';const id=++this.serial;this.pending.set(id,entry);this.active++;const url=this.metadata.tiles[0].replace('{z}',entry.tile.z).replace('{x}',wrap(entry.tile.x,2**entry.tile.z)).replace('{y}',entry.tile.y);this.worker.postMessage({id,url,z:entry.tile.z});}
  }
  draw({view,width,height,dpr,camera}){
-  if(!this.enabled||!this.metadata)return null;
+  if(!this.enabled||(this.body==='earth'&&!this.metadata))return null;
   const cssCamera=camera?{...camera,width:width,height:height,radius:camera.radius/dpr}:null;
   const zoom=cssCamera?Math.log2(2*Math.PI*cssCamera.radius/256):view.zoom;
-  const z=Math.max(this.metadata.minzoom??0,Math.min(this.metadata.maxzoom??14,Math.floor(zoom)));
+  const z=Math.max(this.metadata?.minzoom??0,Math.min(this.metadata?.maxzoom??14,Math.floor(zoom)));
   const signature=[view.x,view.y,view.zoom,width,height,dpr,cssCamera?.radius??0].join('/');
   if(signature===this.signature&&!this.dirty)return this.scene;
   this.signature=signature;this.dirty=false;
-  const tiles=cssCamera?sphereTiles(cssCamera,this.metadata.maxzoom??14,256):visibleTiles(view,width,height,z);
+  const tiles=this.body==='earth'?(cssCamera?sphereTiles(cssCamera,this.metadata.maxzoom??14,256):visibleTiles(view,width,height,z)):[];
   this.needed=new Set(tiles.map(t=>t.key));this.queue=[];
   for(const [id,entry] of this.pending)if(!this.needed.has(entry.key)){this.worker.postMessage({id,cancel:true});this.pending.delete(id);this.entries.delete(entry.key);this.active--;}
   for(const tile of tiles){let entry=this.entries.get(tile.key);if(!entry){entry={key:tile.key,tile,state:'queued'};this.entries.set(tile.key,entry);}if(entry.state==='failed'&&performance.now()>=entry.retry)entry.state='queued';if(entry.state==='queued'&&!this.queue.includes(entry))this.queue.push(entry);entry.used=performance.now();}
   let bytes=[...this.entries.values()].reduce((sum,e)=>sum+(e.bytes||0),0);
   for(const [key,entry] of [...this.entries].sort((a,b)=>a[1].used-b[1].used)){if(bytes<64*1024*1024&&this.entries.size<=192)break;if(!this.needed.has(key)&&entry.state!=='loading'){bytes-=entry.bytes||0;this.entries.delete(key);}}
   this.pump();this.scheduleRetry();
-  const labels=[],readyTiles=[];let stateBorders=false,ready=0,failed=0,roads=0,borders=0;
+  const labels=this.body==='earth'?[]:planetaryLabelCandidates(this.catalogs.get(this.body)??[],this.body,{view,width,height,camera:cssCamera,zoom}),readyTiles=[];let stateBorders=false,ready=0,failed=0,roads=0,borders=0;
   for(const tile of tiles){
    const entry=this.entries.get(tile.key);if(entry?.state==='failed')failed++;if(entry?.state!=='ready')continue;ready++;
    if(!entry.geometry)entry.geometry=buildMapGeometry(entry.layers,tile.z);
    const sourceTile={tile,entry};readyTiles.push(sourceTile);stateBorders||=zoom>=5&&entry.geometry.stateBorders;
    for(const [key,count] of entry.geometry.groups){const [channel,minzoom]=key.split('/').map(Number);if(zoom>=minzoom){if(channel===0)roads+=count;else borders+=count;}}
    for(const layer of entry.layers){
-    if(layer.name!=='place'&&layer.name!=='water_name'&&!(layer.name==='transportation_name'&&zoom>=13))continue;
+    if(!['place','water_name','waterway','mountain_peak','park'].includes(layer.name)&&!(layer.name==='transportation_name'&&zoom>=13))continue;
     const project=(x,y)=>mapProject(view,width,height,cssCamera,tile,layer.extent,x,y),origin=cssCamera?null:project(0,0),scale=256*2**view.zoom/(2**tile.z*layer.extent);
     const viewport=origin?[(-32-origin[0])/scale,(-32-origin[1])/scale,(width+32-origin[0])/scale,(height+32-origin[1])/scale]:null;
     for(const feature of layer.features){
-     const p=feature.properties,name=p['name:en']||p.name||(layer.name==='transportation_name'?p.ref:null);if(!name)continue;
+     const p=feature.properties,name=p['name:en']||p.name_en||p.name||(layer.name==='transportation_name'?p.ref:null);if(!name)continue;
      if(layer.name==='transportation_name'){
       for(const path of feature.paths){if(viewport?!pathIntersects(path,viewport):!spherePathIntersects(path,tile,layer.extent,cssCamera))continue;let best,previous;
        for(let i=0;i<path.length;i+=2){const point=project(path[i],path[i+1]);if(previous&&point){const length=Math.hypot(point[0]-previous[0],point[1]-previous[1]);if(!best||length>best.length)best={a:previous,b:point,length};}previous=point;}
@@ -148,8 +196,15 @@ export class MapOverlay{
       }
       continue;
      }
-     const style=layer.name==='place'?placeStyle(p,zoom):zoom>=6?{size:10.5,weight:400,family:uiFont,spacing:.25,color:mapLabelColor,priority:7}:null;
-     const path=feature.paths[0];if(!style||!path?.length)continue;const x=path[0],y=path[1];if(x<0||y<0||x>=layer.extent||y>=layer.extent)continue;
+     const style=layer.name==='place'?placeStyle(p,zoom):geographicStyle(layer.name,p,zoom);
+     if(!style)continue;
+     if(feature.type===2){
+      const paths=feature.paths.filter(path=>viewport?pathIntersects(path,viewport):spherePathIntersects(path,tile,layer.extent,cssCamera));
+      const anchor=lineLabelAnchor(paths,project,String(name).length*style.size*.65);
+      if(anchor)labels.push({...style,name:String(name),...anchor});
+      continue;
+     }
+     const anchor=geographicPoint(feature);if(!anchor)continue;const [x,y]=anchor;if(x<0||y<0||x>=layer.extent||y>=layer.extent)continue;
      const point=project(x,y);if(!point||point[0]<8||point[1]<10||point[0]>width-8||point[1]>height-10)continue;
      labels.push({...style,name:String(name),point,sourceTile,u:(tile.x+x/layer.extent)/2**tile.z,v:(tile.y+y/layer.extent)/2**tile.z});
     }
@@ -170,8 +225,8 @@ export class MapOverlay{
    placed.push({...label,text,font,spacing,textWidth});
   }
   this.stats={roads,borders,labels:placed.length,ready,total:tiles.length};
-  this.onStatus(failed?`Map: ${failed} tile(s) retrying…`:ready<tiles.length?'Loading map data…':'');
-  this.revision++;this.scene={gpu:true,revision:this.revision,fontRevision:this.fontRevision||0,tiles:readyTiles,entries:new Set(this.entries.values()),labels:placed,view:{...view},width,height,dpr,camera:cssCamera,zoom};return this.scene;
+  if(this.body==='earth')this.onStatus(failed?`Map: ${failed} tile(s) retrying…`:ready<tiles.length?'Loading map data…':'');
+  this.revision++;this.scene={gpu:true,revision:this.revision,fontRevision:this.fontRevision||0,tiles:readyTiles,entries:this.body==='earth'?new Set(this.entries.values()):new Set(),labels:placed,view:{...view},width,height,dpr,camera:cssCamera,zoom};return this.scene;
  }
 }
 

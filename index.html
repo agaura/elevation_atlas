@@ -19,8 +19,8 @@
                 <h1>Elevation <span>Atlas</span></h1>
             </div>
             <div class="header-right">
-                <div class="map-actions"><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
-                            type="checkbox" aria-label="Sphere View"><span class="projection-sphere">Sphere</span></label><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
+                <div class="map-actions"><select id="celestial-body" aria-label="Celestial Body" title="Celestial Body" disabled><option value="earth">Earth</option><option value="mars">Mars</option><option value="moon">Moon</option></select><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
+                            type="checkbox" aria-label="Sphere View" checked><span class="projection-sphere">Sphere</span></label><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
                         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
                     </button><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
@@ -39,8 +39,10 @@
                 <div id="search-status" role="status"></div>
             </form>
             <section class="color-controls">
+                <div id="water-control" class="control-expander" data-open="true" aria-hidden="false"><div class="control-expander-inner">
                 <label class="toggle water-toggle">Water <input
                         id="water" type="checkbox" role="switch"></label>
+                </div></div>
                 <label class="toggle">Auto Color Range <input id="auto-color-range" type="checkbox" role="switch" aria-controls="elevation-range-controls" checked></label>
                 <div id="elevation-range-controls" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner">
                 <label class="toggle">Auto Slider Range <input id="auto-slider-range" type="checkbox" role="switch" checked></label>
@@ -165,7 +167,8 @@
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
                 <details class="render-details">
                     <summary>Rendering Details</summary>
-                    <span id="projection-label">GLOBAL ELEVATION / WEB MERCATOR</span>
+                    <span id="body-source" class="body-source" hidden></span>
+                    <span id="projection-label">GLOBAL ELEVATION / SPHERE</span>
                 <dl>
                     <dt>Presentation</dt>
                     <dd id="hdr">Initializing</dd>
@@ -175,9 +178,9 @@
                     <dd id="level">—</dd>
                     <dt>Tile Coverage</dt>
                     <dd id="coverage">—</dd>
-                    <dt>GEBCO Tiles</dt>
+                    <dt id="source-coverage-label">GEBCO Tiles</dt>
                     <dd id="gebco-coverage">—</dd>
-                    <dt>GEBCO Status</dt>
+                    <dt id="source-status-label">GEBCO Status</dt>
                     <dd id="gebco-status">—</dd>
                 </dl>
                 <div class="map-help"><span id="scale">—</span></div>
@@ -187,14 +190,15 @@
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
                     <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
-                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Water</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Water</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
                         <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
                         <span class="key-command">Hold <kbd>Shift</kbd> to preview highlight</span> · <span class="key-command"><kbd>Shift-click</kbd> to keep</span></p>
                 </div>
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
-                <p><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
+                <p id="planetary-attribution" hidden>Sources: <a href="https://trek.nasa.gov/" target="_blank" rel="noreferrer">NASA Trek</a> · <a href="https://stac.astrogeology.usgs.gov/" target="_blank" rel="noreferrer">USGS Astrogeology</a> · <a href="https://planetarynames.wr.usgs.gov/" target="_blank" rel="noreferrer">IAU / USGS Names</a></p>
+                <p id="earth-attribution"><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
                         sources</a><br><a href="https://openwaters.io/charts/seascape#license" target="_blank"
                         rel="noreferrer">Open Waters / Seascape sources</a> · <a href="https://www.gebco.net/" target="_blank" rel="noreferrer">GEBCO Compilation Group 2025</a> · <a href="https://source.coop/ausantarctic/gebco" target="_blank" rel="noreferrer">Australian Antarctic Division / Source Cooperative</a><br><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
             </footer>

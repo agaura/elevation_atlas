@@ -1,3 +1,4 @@
+import {PALETTE_ACCENT_WGSL} from './palette-accent.js';
 import {captureTexture} from './frame-capture.js';
 import {SOURCE_GRADIENT_WGSL} from './terrain-gradient.js';
 import {createSpherePass} from './sphere-gpu.js';
@@ -30,8 +31,9 @@ fn valid(v:vec4f,center:vec4f)->f32{if(!(v.x>=-40000&&v.x<=40000)||sign(v.y)!=si
  if(p.effects.z>0.&&p.highlight.w<.5){edge=sourceEdge(xy,nearest.y,0);}
  return vec2f(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),select(edge,select(-1.5,-2.-edge,edge>=0.),nearest.y<0.));
 }`;
-const colorShader=COLOR_WGSL+params+quad+`
-fn mapInk(color:vec3f)->vec3f{
+const colorShader=COLOR_WGSL+PALETTE_ACCENT_WGSL+params+quad+`
+fn mapInk()->vec3f{
+ let color=LINEAR_SRGB_TO_LINEAR_P3*decodeSRGB(paletteAccent(p.range.z));
  let inkLuminance=select(.88,1.15,p.range.w>1.5);
  if(p.range.z<.5){return vec3f(inkLuminance);}
  let luminance=dot(color,vec3f(.2289746,.6917385,.0792869));
@@ -67,10 +69,12 @@ if(!legend&&p.highlight.w>.5){
  var road=mix(linear,vec3f(luminance),.5)*roadGain;
  road+=vec3f(max(0.,.08-luminance*roadGain));
  linear=mix(linear,road,mask.r);
- linear=mix(linear,mapInk(decodeSRGB(vec3f(.47,.72,.96))),mask.g);
+ // Halve border light output in linear P3 while preserving its soft coverage.
+ linear=mix(linear,mapInk()*.5,mask.g);
  // Label backgrounds and glyphs are composited after every map/terrain effect.
  linear=mix(linear,select(vec3f(.002,.004,.008),vec3f(.004),p.range.z<.5),mask.b);
- let label=textureLoad(mapLabels,coord,0);linear=mix(linear,mapInk(decodeSRGB(label.rgb)),label.a);c=encodeSRGB(linear);
+ let label=textureLoad(mapLabels,coord,0);
+ linear=mix(linear,mapInk(),label.a);c=encodeSRGB(linear);
 }
 if(p.screen.w<.5){c=encodeSRGB(LINEAR_P3_TO_LINEAR_SRGB*decodeSRGB(c));}return vec4f(c,1);}`;
 const reductionShader=`@group(0) @binding(0) var terrain:texture_2d<f32>;
@@ -91,7 +95,7 @@ export async function createRenderer(device,format,context,legendContext,swatchC
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
  function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array(data));return u.group;}
  device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
- return {memoryBytes(cache){return w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
+ return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
  },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,reduce,onExposure}){

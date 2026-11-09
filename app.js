@@ -1,3 +1,5 @@
+import {paletteAccent} from './palette-accent.js';
+import {BODIES} from './planetary.js';
 import {HIGHLIGHT_HDR_TARGET} from './colors.js';
 import {googleMapsUrl} from './google-maps.js';
 import {distanceScale} from './scale-bar.js';
@@ -19,17 +21,28 @@ import {coastStep} from './motion.js';
 import {createRenderer} from './gpu.js';
 import {sourceZoom,visibleTiles,wrap,minimumMapZoom,boundedMapY,maximumMapZoom} from './terrain.js';
 const $=id=>document.getElementById(id), canvas=$('map'),legend=$('legend');
-const view={x:.5,y:.42,zoom:2};
+const view={x:.5,y:.5,zoom:2};
 try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=boundedSphereY(saved[2]);}}catch{}
 let device,context,legendContext,swatchContext,renderer,format,toneMapping,colorSpace='display-p3',tiles=[],cache=new Map(),active=0,queue=[],frame=0,dpr=1,width=1,height=1,min=-11000,max=8850,metadata;
 let sphereZoom=0,globeCamera=null;
+let body='earth',earthMetadata;const bodyViews=new Map();
+const initialBody=BODIES[new URL(location.href).searchParams.get('body')]?new URL(location.href).searchParams.get('body'):'earth';
+function isEarth(){return body==='earth';}
+function bodyRange(){return BODIES[body];}
+function syncGoogleMapsVisibility(){
+ const panel=$('map-panel');
+ const fullscreen=document.fullscreenElement===panel||panel.classList.contains('is-expanded');
+ $('google-maps').hidden=!isEarth();
+ $('fullscreen-google-maps').hidden=!isEarth()||!fullscreen;
+}
 function updateGoogleMapsLink(){
  const rect=canvas.getBoundingClientRect();
  const zoom=isSphere()?mapZoomFromSphereZoom(sphereZoom,view.y,rect.width,rect.height):view.zoom;
  for(const id of ['google-maps','fullscreen-google-maps'])$(id).href=googleMapsUrl(view,zoom);
 }
 for(const id of ['google-maps','fullscreen-google-maps']){
- $(id).addEventListener('click',updateGoogleMapsLink);
+ $(id).classList.add('earth-only');
+ $(id).addEventListener('click',event=>{if(!isEarth()){event.preventDefault();return;}updateGoogleMapsLink();});
  $(id).addEventListener('contextmenu',updateGoogleMapsLink);
  $(id).href=googleMapsUrl(view);
 }
@@ -84,6 +97,11 @@ function requestRender(){if(!frame)frame=requestAnimationFrame(time=>{frame=0;if
 function controls(){applySliderDomain();for(const id of ['min','max']){$(id+'-value').textContent=Math.round(id==='min'?min:max).toLocaleString()+' m';$(id).value=id==='min'?min:max;$(id+'-sea').setAttribute('aria-pressed',(id==='min'?min:max)===0);} $('legend-min').textContent=Math.round(min).toLocaleString()+' m';$('legend-max').textContent=Math.round(max).toLocaleString()+' m';syncNumbers();}
 function reportGebco(){
  if(!metadata)return;
+ if(!isEarth()){
+  const candidates=tiles.filter(t=>!t.fallback&&t.z>=8),done=candidates.filter(t=>cache.get(t.key)?.oceanSource==='planetary-refined').length;
+  $('gebco-coverage').textContent=`${done} / ${candidates.length}`;
+  $('gebco-status').textContent=candidates.some(t=>cache.get(t.key)?.refineAbort)?'Refining local terrain':candidates.length?'Local DEM coverage where available':'Global NASA terrain';return;
+ }
  const size=Math.max(metadata.land.tileSize||512,metadata.sea.tileSize||512),now=performance.now();
  const eligible=[...new Map(tiles.filter(t=>!t.fallback&&gebcoSampling(t,size).useGebco).map(t=>[t.key,t])).values()];
  let complete=0,loading=0,retrying=0;
@@ -98,8 +116,8 @@ function reportGebco(){
  $('gebco-status').textContent=!eligible.length?'Seascape Only':complete===eligible.length?'Complete':
   [loading&&`${loading} Loading`,queued&&`${queued} Queued`,retrying&&`${retrying} Retrying`].filter(Boolean).join(' · ');
 }
-function report(){reportGebco();const ready=tiles.filter(t=>!!cache.get(t.key)?.texture).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?'Loading native-resolution terrain…':$('water').checked&&tiles.some(t=>cache.get(t.key)?.refineAbort)?'Refining ocean detail…':'';}
-const tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});
+function report(){reportGebco();const ready=tiles.filter(t=>!!cache.get(t.key)?.texture).length;const missing=tiles.filter(t=>cache.get(t.key)?.state==='failed').length;const parents=tiles.filter(t=>cache.get(t.key)?.overzoomed).length;$('coverage').textContent=`${ready} / ${tiles.length}${parents?' ('+parents+' parent)':''}`;$('message').textContent=missing?`${missing} tile(s) unavailable. Retrying automatically…`:ready<tiles.length?(isEarth()?'Loading native-resolution terrain…':`Loading ${BODIES[body].label} terrain…`):tiles.some(t=>cache.get(t.key)?.refineAbort)?(!isEarth()?'Refining local terrain…':$('water').checked?'Refining ocean detail…':''):'';}
+let tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});
 let nextRequest=0;const pendingTiles=new Map();
 tileWorker.onmessage=({data})=>{const pending=pendingTiles.get(data.id);if(!pending)return;if(data.progress){pending.progress(data.timeout);return;}pendingTiles.delete(data.id);if(data.error)pending.reject(Object.assign(Error(data.error),{status:data.status,retryAfterMs:data.retryAfterMs||0}));else pending.resolve(data);};
 function invalidateTerrain(){exposureDirty=true;renderer?.invalidate();}
@@ -116,7 +134,7 @@ function requestTerrain(t,signal,oceanSource,retry=false,timeouts=0){
  return new Promise((resolve,reject)=>{
   const cancel=()=>{tileWorker.postMessage({id,cancel:true});finish(Error('Tile cancelled'));};
   const finish=(error,data)=>{clearTimeout(timer);signal.removeEventListener('abort',cancel);pendingTiles.delete(id);error?reject(error):resolve(data);};
-  const timeout=(oceanSource==='gebco')?10000:1000*2**Math.min(timeouts,3);
+  const timeout=!isEarth()?30000:(oceanSource==='gebco')?10000:1000*2**Math.min(timeouts,3);
   let timer;
   const progress=(inactivityTimeout=timeout)=>{clearTimeout(timer);timer=setTimeout(()=>{tileWorker.postMessage({id,cancel:true});finish(new DOMException('Tile request timed out','TimeoutError'));},inactivityTimeout);};
   progress();
@@ -143,9 +161,9 @@ function pumpRefinements(){
  clearTimeout(refinementTimer);
  if(document.hidden||refining||active||queue.length||!metadata)return;
  const now=performance.now(),size=Math.max(metadata.land.tileSize||512,metadata.sea.tileSize||512);
- const candidates=tiles.filter(t=>!t.fallback&&gebcoSampling(t,size).useGebco)
+ const candidates=tiles.filter(t=>!t.fallback&&(isEarth()?gebcoSampling(t,size).useGebco:t.z>=8))
   .map(t=>({t,entry:cache.get(t.key)}))
-  .filter(({entry})=>entry?.state==='ready'&&entry.oceanSource!=='gebco');
+  .filter(({entry})=>entry?.state==='ready'&&entry.oceanSource!==(isEarth()?'gebco':'planetary-refined'));
  const candidate=candidates.find(({entry})=>(entry.refineAfter||0)<=now);
  if(!candidate){
   if(candidates.length)refinementTimer=setTimeout(pumpRefinements,Math.max(1,Math.min(...candidates.map(({entry})=>entry.refineAfter))-now));
@@ -153,7 +171,7 @@ function pumpRefinements(){
  }
  const {t,entry}=candidate,controller=new AbortController();
  refining=true;entry.refineAbort=controller;report();
- requestTerrain(t,controller.signal,'gebco').then(decoded=>{
+ requestTerrain(t,controller.signal,isEarth()?'gebco':'planetary-refine').then(decoded=>{
   if(controller.signal.aborted||cache.get(t.key)!==entry)return;
   applyTerrain(entry,decoded);requestRender();
  }).catch(error=>{
@@ -207,13 +225,15 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
  globeCamera=isSphere()?sphereCamera(view,width,height,dpr,sphereZoom):null;
  updateGoogleMapsLink();
- const distanceBar=distanceScale(view,width,globeCamera?globeCamera.radius/dpr:null);$('distance-scale-label').textContent=distanceBar.label;$('distance-scale-line').style.width=`${distanceBar.width}px`;
+ const distanceBar=distanceScale(view,width,globeCamera?globeCamera.radius/dpr:null,BODIES[body].radius);$('distance-scale-label').textContent=distanceBar.label;$('distance-scale-line').style.width=`${distanceBar.width}px`;
 
- const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});const needed=new Set(requested.map(t=>t.key));queue=[];
+ const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});if(!isEarth())requested.sort((a,b)=>a.z-b.z);const needed=new Set(requested.map(t=>t.key));queue=[];
  for(const [key,entry] of cache){if(!needed.has(key))entry.refineAbort?.abort();if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}
  for(const t of requested){let entry=cache.get(t.key);if(!entry){entry={state:'queued',abort:new AbortController()};cache.set(t.key,entry);queue.push(t);}else if(entry.state==='queued'&&!queue.some(q=>q.key===t.key))queue.push(t);entry.used=performance.now();}
  trimTerrainCache();
- $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?6378137/globeCamera.radius:40075016.686*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;syncViewUrl(`#${view.zoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
+ $('pixels').textContent=`${pw} × ${ph} / ${dpr}×`;$('level').textContent=globeCamera?`z${Math.min(...tiles.filter(t=>!t.fallback).map(t=>t.z))}–${Math.max(...tiles.filter(t=>!t.fallback).map(t=>t.z))} / sphere`:`z${z} / view ${view.zoom.toFixed(2)}`;const lat=Math.atan(Math.sinh(Math.PI*(1-2*view.y)))*180/Math.PI;$('scale').textContent=`${(globeCamera?BODIES[body].radius/globeCamera.radius:2*Math.PI*BODIES[body].radius*Math.cos(lat*Math.PI/180)/(256*2**view.zoom*dpr)).toFixed(2)} m / device px${globeCamera?' at center':''}`;// Serialize the globe's actual scale, rather than its inactive flat-map zoom.
+ const urlZoom=globeCamera?mapZoomFromSphereZoom(sphereZoom,view.y,width,height):view.zoom;
+ syncViewUrl(`#${urlZoom.toFixed(4)}/${view.x.toFixed(7)}/${view.y.toFixed(7)}`);report();pump();}
 function flatRenderTiles(uploadedOnly=false){const ready=e=>uploadedOnly?(e?.state==='ready'&&!!e.texture):e?.state==='ready';return tiles.flatMap(t=>{
  if(ready(cache.get(t.key)))return [t];
  for(let z=t.z-1;z>=0;z--){const factor=2**(t.z-z),x=Math.floor(t.x/factor),y=Math.floor(t.y/factor),sourceKey=`${z}/${wrap(x,2**z)}/${y}`;
@@ -229,8 +249,8 @@ function applySliderDomain(time=performance.now()){
 }
 function retargetSliderDomain(time=performance.now()){
  const automatic=$('auto-slider-range').checked;
- sliderDomain.min.retarget(automatic?viewBounds.min:-12000,time);
- sliderDomain.max.retarget(automatic?viewBounds.max:9000,time);
+ sliderDomain.min.retarget(automatic?viewBounds.min:bodyRange().min,time);
+ sliderDomain.max.retarget(automatic?viewBounds.max:bodyRange().max,time);
 }
 function advanceSliderDomain(time){
  if(reducedMotion.matches){sliderDomain.min.snap(sliderDomain.min.target);sliderDomain.max.snap(sliderDomain.max.target);}
@@ -262,7 +282,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,waterOpacity:waterTransition.valueAt(time),sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
@@ -277,7 +297,7 @@ function render(time=performance.now()){
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');swatchContext=$('highlight-swatch').getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format,alphaMode:'opaque'});}
  $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext,swatchContext);
- const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');controls();highlightLabel();downloadButtons.forEach(button=>{button.disabled=false;});new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
+ const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');earthMetadata=metadata;if(location.hash&&initialBody==='earth'){const rect=canvas.getBoundingClientRect();sphereZoom=sphereZoomFromMapZoom(view.zoom,view.y,rect.width,rect.height);}$('celestial-body').disabled=false;if(initialBody!=='earth'){$('celestial-body').value=initialBody;switchBody(initialBody,true);}controls();highlightLabel();downloadButtons.forEach(button=>{button.disabled=false;});new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
 function setControlExpansion(id,open){const element=$(id);if(element.dataset.open===String(open))return;element.dataset.open=String(open);element.inert=!open;element.setAttribute('aria-hidden',String(!open));}
 function syncColorRangeMode(){const automatic=!locks.min&&!locks.max;$('auto-color-range').checked=automatic;setControlExpansion('elevation-range-controls',!automatic);}
 function setLocked(id,locked){locks[id]=locked;const button=$(id+'-lock'),label=`${locked?'Unlock':'Lock'} ${id==='min'?'minimum':'maximum'} elevation`;button.setAttribute('aria-pressed',locked);button.setAttribute('aria-label',label);button.title=`${locked?'Resume':'Pause'} automatic ${id==='min'?'minimum':'maximum'} elevation adjustment`;$(id).closest('.slider-control').classList.toggle('is-locked',locked);if(locked){exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);}syncColorRangeMode();}
@@ -444,7 +464,9 @@ document.addEventListener('visibilitychange',()=>{
  clearTimeout(pulseTimer);pulseTimer=0;
  if(!document.hidden&&pulseRunning()){pulseStart=performance.now();requestRender();}
 });
-$('palette').addEventListener('change',requestRender);
+function updatePaletteAccent(){document.documentElement.style.setProperty('--accent',paletteAccent(Number($('palette').value)));requestRender();}
+$('palette').addEventListener('change',updatePaletteAccent);
+updatePaletteAccent();
 $('map-mode').addEventListener('change',()=>{mapOverlay.enable($('map-mode').checked);requestRender();});
 $('palette-flip').addEventListener('click',()=>{const button=$('palette-flip');button.setAttribute('aria-pressed',button.getAttribute('aria-pressed')!=='true');requestRender();});
 const sliderIds=['min','max','highlight-elevation','highlight-width'];
@@ -465,7 +487,7 @@ async function downloadImage(){
   const framePromise=renderer.capture();requestRender();
   const frame=await framePromise;
   const paletteName=$('palette').selectedOptions[0].textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
-  const filename=`elevation-atlas-${paletteName}-${frame.width}x${frame.height}-hdr.avif`;
+  const filename=`elevation-atlas-${body}-${paletteName}-${frame.width}x${frame.height}-hdr.avif`;
   worker=new Worker(new URL('./image-export.worker.js',import.meta.url),{type:'module'});
   const encoded=await new Promise((resolve,reject)=>{
    worker.onmessage=({data})=>{if(data.status){status.textContent=data.status;return;}if(data.error)reject(new Error(data.error));else resolve(data);};
@@ -484,7 +506,7 @@ async function downloadImage(){
 }
 for(const button of downloadButtons)button.addEventListener('click',downloadImage);
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;$('fullscreen-google-maps').hidden=!active;updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;syncGoogleMapsVisibility();updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}
@@ -519,11 +541,41 @@ function panBy(dx,dy){lastViewMotion=performance.now();
 }
 setupSearch(location=>{
  stopMomentum();stopNavigation();
- const rect=canvas.getBoundingClientRect(),destination=searchDestination(location,rect.width,rect.height);
+ const rect=canvas.getBoundingClientRect(),destination=searchDestination(location,rect.width,rect.height,{planetRadius:isEarth()?null:BODIES[body].radius,allowPolar:!isEarth()});
  view.x=destination.x;view.y=destination.y;view.zoom=destination.zoom;sphereZoom=destination.sphereZoom;
  constrain();updateView();canvas.focus({preventScroll:true});
-});
-function zoomCeiling(){return maximumMapZoom(Object.values(metadata??fallback));}
+},{canGeocode:isEarth,getBody:()=>body});
+function switchBody(next,initial=false){
+ if(next===body||!BODIES[next])return;
+ stopMomentum();stopNavigation();endShiftHover();exposureConfig++;
+ bodyViews.set(body,{view:{...view},sphereZoom,sphere:isSphere()});
+ for(const entry of cache.values()){entry.abort?.abort();entry.refineAbort?.abort();entry.texture?.destroy();}
+ cache.clear();queue=[];tiles=[];clearTimeout(refinementTimer);
+ const handler=tileWorker.onmessage;tileWorker.terminate();tileWorker=new Worker(new URL('./terrain.worker.js',import.meta.url),{type:'module'});tileWorker.onmessage=handler;
+ renderer?.clearTerrain?.();
+ body=next;
+ metadata=isEarth()?earthMetadata:{body,land:{tileSize:512,maxzoom:BODIES[body].maxzoom},sea:{tileSize:512,maxzoom:BODIES[body].maxzoom,schema:1}};
+ const saved=bodyViews.get(body);
+ if(saved){Object.assign(view,saved.view);sphereZoom=saved.sphereZoom;$('projection').checked=saved.sphere;}
+ else{$('projection').checked=true;const rect=canvas.getBoundingClientRect();sphereZoom=initial?sphereZoomFromMapZoom(view.zoom,view.y,rect.width,rect.height):0;if(!initial)Object.assign(view,{x:.5,y:.5,zoom:2});}
+ setControlExpansion('water-control',isEarth());
+ $('water').disabled=!isEarth();
+ mapOverlay.setBody(body);
+ mapOverlay.enable($('map-mode').checked);
+ syncGoogleMapsVisibility();
+ document.querySelector('label[for="location-query"]').textContent=isEarth()?'Coordinates or Address':'Coordinates or Feature Name';$('location-query').title=isEarth()?'Latitude, longitude or an address':'Latitude, longitude or a named geographic feature';$('location-query').value='';$('location-query').placeholder=isEarth()?'Coordinates or Address':'Coordinates or Feature Name';$('location-query').dispatchEvent(new Event('input'));
+ $('source-coverage-label').textContent=isEarth()?'GEBCO Coverage':'DEM Refinement';$('source-status-label').textContent=isEarth()?'GEBCO Status':'Terrain Status';
+ $('planetary-attribution').hidden=isEarth();$('earth-attribution').hidden=!isEarth();$('body-source').hidden=isEarth();$('body-source').textContent=isEarth()?'':body==='mars'?'Mars · NASA Trek / MOLA reference · local USGS CTX refinement':'Moon · NASA Trek / 1,737.4 km reference sphere · local USGS Kaguya refinement';
+ pinnedProbe=null;cursor.inside=false;seaLevelRestore.min=null;seaLevelRestore.max=null;
+ min=BODIES[body].min;max=BODIES[body].max;viewBounds={min,max};
+ for(const id of ['min','max']){locks[id]=false;exposureTargets[id]=id==='min'?min:max;exposureTweens[id].snap(exposureTargets[id]);setLocked(id,false);}
+ sliderDomain.min.snap(min);sliderDomain.max.snap(max);highlightStateReady=false;
+ $('projection-label').textContent=isSphere()?'GLOBAL ELEVATION / SPHERE':'GLOBAL ELEVATION / WEB MERCATOR';
+ const url=new URL(location.href);if(isEarth())url.searchParams.delete('body');else url.searchParams.set('body',body);try{history.replaceState(null,'',url);}catch{}
+ invalidateTerrain();controls();highlightLabel();updateView();
+}
+$('celestial-body').addEventListener('change',()=>switchBody($('celestial-body').value));
+function zoomCeiling(){return maximumMapZoom([(metadata??fallback).land,(metadata??fallback).sea]);}
 function constrain(){view.x=wrap(view.x,1);view.zoom=Math.max(minimumMapZoom(height),Math.min(zoomCeiling(),view.zoom));sphereZoom=Math.max(-1,Math.min(maximumSphereZoom(width,height,zoomCeiling()),sphereZoom));if(isSphere())view.y=boundedSphereY(view.y);else{view.y=boundedMapY(view.y,view.zoom,height);}}
 function zoomAt(delta,x,y){lastViewMotion=performance.now();if(isSphere()){const nextZoom=Math.max(-1,Math.min(maximumSphereZoom(width,height,zoomCeiling()),sphereZoom+delta)),anchor=zoomSphereAt(view,width,height,sphereZoom,nextZoom,x,y);view.x=anchor.x;view.y=anchor.y;sphereZoom=nextZoom;updateView();return;}const old=256*2**view.zoom;view.zoom=Math.max(minimumMapZoom(height),Math.min(zoomCeiling(),view.zoom+delta));const next=256*2**view.zoom;view.x+=x/old-x/next;view.y+=y/old-y/next;constrain();updateView();}
 canvas.addEventListener('wheel',e=>{stopMomentum();stopNavigation();e.preventDefault();const r=canvas.getBoundingClientRect();zoomAt(-e.deltaY*(e.deltaMode===1?.04:.004),e.clientX-r.left-width/2,e.clientY-r.top-height/2);},{passive:false});
@@ -699,10 +751,29 @@ function restoreSidebarDefaults(){
  $('auto-color-range').dispatchEvent(new Event('change',{bubbles:true}));
  highlightStateReady=false;hoverFilterActive=false;highlightLabel();controls();requestRender();
 }
+function toggleFullColorRange(){
+ const range=bodyRange();
+ if(locks.min&&locks.max&&exposureTargets.min===range.min&&exposureTargets.max===range.max){
+  $('auto-color-range').checked=true;
+  $('auto-color-range').dispatchEvent(new Event('change',{bubbles:true}));
+  return;
+ }
+ const now=performance.now();advanceExposure(now);exposureConfig++;
+ const from={min,max};seaLevelRestore.min=null;seaLevelRestore.max=null;
+ min=range.min;max=range.max;setLocked('min',true);setLocked('max',true);
+ if(!reducedMotion.matches){
+  exposureTweens.min.start(from.min,min,now);exposureTweens.max.start(from.max,max,now);
+  min=from.min;max=from.max;
+ }
+ invalidateTerrain();controls();requestRender();
+}
 // View shortcuts share the controls' event paths, including animated edges
 // and water/exposure invalidation. Text/number entry and browser modifiers are excluded.
 window.addEventListener('keydown',event=>{
  if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||textFieldHasKeyboardFocus(event))return;
+ if(event.code==='KeyM'&&event.shiftKey){
+  event.preventDefault();if(!event.repeat)toggleFullColorRange();return;
+ }
  if(event.code==='KeyG'||event.code==='KeyR'||event.code==='Digit0'||event.code==='Numpad0'){
   event.preventDefault();if(event.repeat)return;
   if(event.code==='KeyG')$('google-maps').click();
@@ -722,7 +793,7 @@ window.addEventListener('keydown',event=>{
  if(toggleId){
   event.preventDefault();
   if(event.repeat)return;
-  const toggle=$(toggleId);toggle.checked=!toggle.checked;
+  const toggle=$(toggleId);if(toggle.disabled)return;toggle.checked=!toggle.checked;
   toggle.dispatchEvent(new Event('change',{bubbles:true}));
   return;
  }

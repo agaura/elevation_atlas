@@ -33,7 +33,9 @@ fn project(uv:vec2f)->vec3f{
  out.ends=vec4f(a.xy,b.xy);out.depths=vec2f(a.z,b.z);
  let delta=b.xy-a.xy;let segmentLength=max(length(delta),.00001);let tangent=delta/segmentLength;let normal=vec2f(-tangent.y,tangent.x);
  let corners=array<vec2f,6>(vec2f(0.,-1.),vec2f(1.,-1.),vec2f(0.,1.),vec2f(0.,1.),vec2f(1.,-1.),vec2f(1.,1.));let corner=corners[vertex];
- let radius=segment.style.x*p.screen.z*.5+1.;
+ // Include the atlas-style feather in the border quad, in device pixels.
+ let feather=select(0.,5.*p.screen.z,segment.style.z>.5);
+ let radius=segment.style.x*p.screen.z*.5+1.+feather;
  let point=mix(a.xy,b.xy,corner.x)+tangent*((corner.x*2.-1.)*radius)+normal*corner.y*radius;
  out.position=vec4f(point/p.screen.xy*vec2f(2.,-2.)+vec2f(-1.,1.),0.,1.);return out;
 }
@@ -41,7 +43,19 @@ fn project(uv:vec2f)->vec3f{
  let point=in.position.xy;let delta=in.ends.zw-in.ends.xy;
  let t=clamp(dot(point-in.ends.xy,delta)/max(dot(delta,delta),.00001),0.,1.);
  let distance=length(point-mix(in.ends.xy,in.ends.zw,t));
- var coverage=clamp(in.style.x*p.screen.z*.5+.5-distance,0.,1.)*in.style.w;
+ let halfWidth=in.style.x*p.screen.z*.5;
+ var coverage=clamp(halfWidth+.5-distance,0.,1.);
+ if(in.style.z>.5){
+  // Rounded translucent ink: a wider soft center blends into a faint wash.
+  // Both widths scale with DPR, keeping the atlas effect stable on screen.
+  let coreSigma=max(.65*p.screen.z,halfWidth*1.35);
+  let washSigma=coreSigma+1.25*p.screen.z;
+  let core=exp(-.5*pow(distance/coreSigma,2.));
+  let wash=exp(-.5*pow(distance/washSigma,2.));
+  let extent=halfWidth+5.*p.screen.z;
+  coverage=(.82*core+.14*wash)*(1.-smoothstep(extent,extent+1.,distance));
+ }
+ coverage*=in.style.w;
  if(p.screen.w>.5){
   if(length((point-p.screen.xy*.5)/p.camera.x)>1.){discard;}
   if(in.style.z<.5){let fade=clamp((mix(in.depths.x,in.depths.y,t)-.12)/.48,0.,1.);coverage*=fade*fade*(3.-2.*fade);}

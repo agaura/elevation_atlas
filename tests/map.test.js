@@ -1,9 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {decodeVectorTile,geometry} from '../vector-tile.js';
-import {mapProject,roadWidth,placeStyle,RoadContext,pathIntersects,spherePathIntersects} from '../map-overlay.js';
+import {geographicStyle,lineLabelAnchor,geographicPoint,mapProject,roadWidth,placeStyle,RoadContext,pathIntersects,spherePathIntersects} from '../map-overlay.js';
 import {sphereCamera} from '../sphere.js';
-import {mapFixture,zigzag} from './vector-fixture.js';
+import {mapFixture,zigzag,encodeTile} from './vector-fixture.js';
 test('MVT decoder retains roads, boundaries, labels and properties while skipping other layers',()=>{
  const layers=decodeVectorTile(mapFixture());assert.deepEqual(layers.map(l=>l.name),['transportation','boundary','place']);
  assert.deepEqual(layers[0].features[0].paths,[[512,2048,3584,2048]]);
@@ -78,4 +78,28 @@ test('targeted road proximity matches the segment index without storing every ro
  for(const [a,b] of segments){normal.add(a,b);targeted.add(a,b);}
  for(const point of points)assert.equal(targeted.near(point),normal.near(point));
  assert.equal(targeted.cells.size,points.length);assert.equal(targeted.hits.size,3);
+});
+
+test('natural-feature layers survive decoding and use zoom-dependent label hierarchy',()=>{
+ const bytes=encodeTile(['waterway','mountain_peak','park'].map(name=>({name,features:[{type:1,properties:{name:'Natural feature',class:'river'},commands:[9,100,200]}]})));
+ assert.deepEqual(decodeVectorTile(bytes).map(layer=>layer.name),['waterway','mountain_peak','park']);
+ assert.equal(geographicStyle('waterway',{class:'river'},6),null);
+ assert.ok(geographicStyle('waterway',{class:'river'},7));
+ assert.equal(geographicStyle('waterway',{class:'stream'},12),null);
+ assert.ok(geographicStyle('waterway',{class:'stream'},13));
+ assert.equal(geographicStyle('mountain_peak',{rank:5},11),null);
+ assert.ok(geographicStyle('mountain_peak',{rank:5},12));
+ assert.ok(geographicStyle('park',{class:'national_park'},8));
+ assert.equal(geographicStyle('park',{class:'nature_reserve'},8),null);
+});
+test('river labels use complete visible runs, keep text upright and reject short or looping spans',()=>{
+ const path=Array.from({length:101},(_,x)=>[x,20]).flat();
+ assert.deepEqual(lineLabelAnchor([path],(x,y)=>[x,y],60),{point:[50,20],angle:0});
+ assert.ok(Math.abs(lineLabelAnchor([[100,20,0,20]],(x,y)=>[x,y],60).angle)<1e-8);
+ assert.equal(lineLabelAnchor([[0,0,10,0]],(x,y)=>[x,y],30),null);
+ assert.equal(lineLabelAnchor([path],(x,y)=>x>35&&x<65?null:[x,y],40),null);
+});
+test('polygon feature labels use an interior centroid instead of a boundary vertex',()=>{
+ assert.deepEqual(geographicPoint({type:3,paths:[[0,0,100,0,100,100,0,100,0,0]]}),[50,50]);
+ assert.deepEqual(geographicPoint({type:1,paths:[[4,8]]}),[4,8]);
 });
