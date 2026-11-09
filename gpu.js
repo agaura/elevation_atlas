@@ -6,11 +6,12 @@ import {createMapPass} from './map-gpu.js';
 import {COLOR_WGSL,COLOR_MAPS} from './colors.js';
 const quad=`struct Out{@builtin(position) position:vec4f,@location(0) uv:vec2f}
 @vertex fn full(@builtin(vertex_index)i:u32)->Out{let points=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));var o:Out;o.position=vec4f(points[i],0,1);o.uv=vec2f((points[i].x+1)*.5,(1-points[i].y)*.5);return o;}`;
-const params=`struct Params{rect:vec4f,range:vec4f,screen:vec4f,effects:vec4f,highlight:vec4f}
+const params=`struct Params{rect:vec4f,range:vec4f,screen:vec4f,effects:vec4f,highlight:vec4f,maskView:vec4f,maskBounds:vec4f,maskCenter:vec4f,maskRight:vec4f,maskUp:vec4f,maskFront:vec4f}
 @group(0) @binding(0) var terrain:texture_2d<f32>;
 @group(0) @binding(1) var<uniform> p:Params;
 @group(0) @binding(2) var mapMask:texture_2d<f32>;
-@group(0) @binding(3) var mapLabels:texture_2d<f32>;`;
+@group(0) @binding(3) var mapLabels:texture_2d<f32>;
+@group(0) @binding(4) var regionMaskTexture:texture_2d<f32>;`;
 const heightShader=params+quad+SOURCE_GRADIENT_WGSL+`
 fn sourceSize()->vec2i{return vec2i(textureDimensions(terrain));}
 fn sourceValue(coord:vec2i,layer:i32)->vec4f{return textureLoad(terrain,coord,0);}
@@ -46,6 +47,28 @@ fn mapInk()->vec3f{
  return ink;
 }
 
+fn regionCoverage(position:vec2f)->f32{
+ let pixel=position-p.screen.xy*.5;var local:vec2f;
+ if(p.maskView.y>.5){
+  let disk=vec2f(pixel.x,-pixel.y)/p.maskView.z;let depth=1.-dot(disk,disk);if(depth<0.){return 0.;}
+  let point=p.maskRight.xyz*disk.x+p.maskUp.xyz*disk.y+p.maskFront.xyz*sqrt(depth);
+  let u=atan2(point.x,point.z)/6.28318530718+.5;
+  let lat=asin(clamp(point.y,-.9999999,.9999999));
+  let v=.5-log(tan(.78539816339+lat*.5))/6.28318530718;
+  let delta=u-p.maskView.w;local=vec2f(delta-floor(delta+.5)+p.maskCenter.z,v-p.maskCenter.w);
+ }else{
+  let delta=p.maskCenter.x+pixel.x/p.maskView.z;
+  local=vec2f(delta-floor(delta+.5)+p.maskCenter.z,p.maskCenter.y+pixel.y/p.maskView.z);
+ }
+ let uv=local/p.maskBounds.zw;if(any(uv<vec2f(0.))||any(uv>vec2f(1.))){return 0.;}
+ let dims=vec2i(textureDimensions(regionMaskTexture));let xy=uv*vec2f(dims)-.5;let base=vec2i(floor(xy));let f=fract(xy);
+ let a=textureLoad(regionMaskTexture,clamp(base,vec2i(0),dims-1),0).r;
+ let b=textureLoad(regionMaskTexture,clamp(base+vec2i(1,0),vec2i(0),dims-1),0).r;
+ let c=textureLoad(regionMaskTexture,clamp(base+vec2i(0,1),vec2i(0),dims-1),0).r;
+ let d=textureLoad(regionMaskTexture,clamp(base+vec2i(1,1),vec2i(0),dims-1),0).r;
+ return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+
 @fragment fn color(o:Out)->@location(0) vec4f{
 let coord=vec2i(o.position.xy);let legend=p.screen.z>.5;var t=o.uv.x;var elevation=mix(p.range.x,p.range.y,t);var validTerrain=true;var water=false;var terrainEdge = -1.;
 if(p.screen.z>1.5){elevation=p.highlight.x;t=clamp((elevation-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}
@@ -76,32 +99,64 @@ if(!legend&&p.highlight.w>.5){
  let label=textureLoad(mapLabels,coord,0);
  linear=mix(linear,mapInk(),label.a);c=encodeSRGB(linear);
 }
+if(!legend&&p.maskView.x>.5){c=encodeSRGB(decodeSRGB(c)*mix(1.,regionCoverage(o.position.xy),p.maskBounds.x));}
 if(p.screen.w<.5){c=encodeSRGB(LINEAR_P3_TO_LINEAR_SRGB*decodeSRGB(c));}return vec4f(c,1);}`;
+const regionVisibilityShader=colorShader+`
+@fragment fn regionVisibility(o:Out)->@location(0) f32{return regionCoverage(o.position.xy);}`;
 const reductionShader=`@group(0) @binding(0) var terrain:texture_2d<f32>;
 @group(0) @binding(1) var<storage,read_write> results:array<vec2f>;
 @group(0) @binding(2) var<uniform> options:vec4f;
+@group(0) @binding(3) var regionVisibility:texture_2d<f32>;
 var<workgroup> lows:array<f32,256>;var<workgroup> highs:array<f32,256>;
-@compute @workgroup_size(256) fn reduce(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){let dims=textureDimensions(terrain);var lo=1e30;var hi=-1e30;for(var i=0u;i<16u;i++){let index=group.x*4096u+lane+i*256u;if(index<dims.x*dims.y){let sample=textureLoad(terrain,vec2i(i32(index%dims.x),i32(index/dims.x)),0);let v=sample.r;if(v>=-40000&&v<=40000&&!(options.x>.5&&sample.g< -1.)){lo=min(lo,v);hi=max(hi,v);}}}lows[lane]=lo;highs[lane]=hi;workgroupBarrier();for(var stride=128u;stride>0u;stride/=2u){if(lane<stride){lows[lane]=min(lows[lane],lows[lane+stride]);highs[lane]=max(highs[lane],highs[lane+stride]);}workgroupBarrier();}if(lane==0u){results[group.x]=vec2f(lows[0],highs[0]);}}`;
+@compute @workgroup_size(256) fn reduce(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){let dims=textureDimensions(terrain);var lo=1e30;var hi=-1e30;for(var i=0u;i<16u;i++){let index=group.x*4096u+lane+i*256u;if(index<dims.x*dims.y){let sample=textureLoad(terrain,vec2i(i32(index%dims.x),i32(index/dims.x)),0);let v=sample.r;if(v>=-40000&&v<=40000&&!(options.x>.5&&sample.g< -1.)&&(options.y<.5||textureLoad(regionVisibility,vec2i(i32(index%dims.x),i32(index/dims.x)),0).r>.5)){lo=min(lo,v);hi=max(hi,v);}}}lows[lane]=lo;highs[lane]=hi;workgroupBarrier();for(var stride=128u;stride>0u;stride/=2u){if(lane<stride){lows[lane]=min(lows[lane],lows[lane+stride]);highs[lane]=max(highs[lane],highs[lane+stride]);}workgroupBarrier();}if(lane==0u){results[group.x]=vec2f(lows[0],highs[0]);}}`;
 export async function createRenderer(device,format,context,legendContext,swatchContext=null){
- const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}}]});const pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
+ const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:3,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:4,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}}]});const pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
  async function make(code,vertex,fragment,target){const module=device.createShaderModule({code});const errors=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));return device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:vertex},fragment:{module,entryPoint:fragment,targets:[{format:target}]},primitive:{topology:'triangle-list'}});}
  const heightPipeline=await make(heightShader,'tile','height','rg32float'),colorPipeline=await make(colorShader,'full','color',format);
  const exportPipeline=format==='rgba16float'?colorPipeline:await make(colorShader,'full','color','rgba16float');
+ const regionVisibilityPipeline=await make(regionVisibilityShader,'full','regionVisibility','r8unorm');
  const spherePass=await createSpherePass(device),mapPass=await createMapPass(device);let gpuMapActive=false;
  const reducePipeline=await device.createComputePipelineAsync({layout:'auto',compute:{module:device.createShaderModule({code:reductionShader}),entryPoint:'reduce'}});
  let maskTexture=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),maskWidth=1,maskHeight=1,maskRevision=-1;
  let labelTexture=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),labelWidth=1,labelHeight=1;
+ let visibilityTexture=device.createTexture({size:[1,1],format:'r8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.RENDER_ATTACHMENT}),visibilityWidth=1,visibilityHeight=1;
+ let regionTexture=device.createTexture({size:[1,1],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT}),regionRevision=-1,regionBytes=4,regionUniforms=new Float32Array(24);
  let screen,screenView,w=0,h=0,uniforms=[],reductionBusy=false,heightDirty=true,edgesAvailable=false,captureRequest=null;
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
- function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array(data));return u.group;}
+ const regionTextures=new Map();
+ function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:176,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture||u.region!==regionTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.region=regionTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()},{binding:4,resource:regionTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array([...data,...regionUniforms]));return u.group;}
  device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
- return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
+ return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return regionBytes+visibilityWidth*visibilityHeight+w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
- },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,reduce,onExposure}){
+ },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
  if(edges>0.&&!edgesAvailable)heightDirty=true;
  edgesAvailable=edges>0.;
  resize(canvas.width,canvas.height);
+ regionUniforms.fill(0);
+ if(regionMask&&view){
+  if(regionRevision!==regionMask.revision){
+   let cached=regionTextures.get(regionMask.revision);
+   if(!cached&&regionMask.image){
+    const image=regionMask.image;
+    const texture=device.createTexture({size:[image.width,image.height],format:'rgba8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});
+    device.queue.copyExternalImageToTexture({source:image},{texture},[image.width,image.height]);
+    cached={texture,bytes:image.width*image.height*4};
+    regionTextures.set(regionMask.revision,cached);regionBytes+=cached.bytes;
+    image.close();regionMask.image=null;
+   }
+   if(cached){regionTexture=cached.texture;regionRevision=regionMask.revision;}
+   // Keep the pinned mask resident while previews replace one another.
+   for(const [revision,entry] of regionTextures){
+    if(regionTextures.size<=3)break;
+    if(revision===pinnedRegionRevision||revision===regionRevision)continue;
+    regionTextures.delete(revision);regionBytes-=entry.bytes;
+    void device.queue.onSubmittedWorkDone().then(()=>entry.texture.destroy());
+   }
+  }
+  const [left,top,spanX,spanY]=regionMask.bounds,reference=regionMask.reference,delta=view.x-reference;
+  regionUniforms.set([1,sphere?1:0,sphere?sphere.radius:256*2**view.zoom*dpr,reference,regionMask.strength??1,top,spanX,spanY,delta-Math.floor(delta+.5),view.y-top,reference-left,top,...(sphere?.right??[0,0,0]),0,...(sphere?.up??[0,0,0]),0,...(sphere?.front??[0,0,0]),0]);
+ }
  const encoder=device.createCommandEncoder();
  if(mapOverlay?.gpu){
   if(!gpuMapActive){maskTexture.destroy();labelTexture.destroy();gpuMapActive=true;}
@@ -149,7 +204,12 @@ export async function createRenderer(device,format,context,legendContext,swatchC
    exportReadback=captureTexture(device,encoder,exportTexture);
   }catch(error){exportTexture?.destroy();exportRequest.reject(error);}
  }
- let readback,output,groups,reductionOptions;if(reduce&&!reductionBusy){groups=Math.ceil(w*h/4096);reductionOptions=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(reductionOptions,0,new Float32Array([noOcean?1:0,0,0,0]));output=device.createBuffer({size:groups*8,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});readback=device.createBuffer({size:groups*8,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});const pass=encoder.beginComputePass();pass.setPipeline(reducePipeline);pass.setBindGroup(0,device.createBindGroup({layout:reducePipeline.getBindGroupLayout(0),entries:[{binding:0,resource:screenView},{binding:1,resource:{buffer:output}},{binding:2,resource:{buffer:reductionOptions}}]}));pass.dispatchWorkgroups(groups);pass.end();encoder.copyBufferToBuffer(output,0,readback,0,groups*8);reductionBusy=true;}
+ if(reduce&&!reductionBusy&&regionFilter&&regionMask){
+  if(visibilityWidth!==w||visibilityHeight!==h){visibilityTexture.destroy();visibilityWidth=w;visibilityHeight=h;visibilityTexture=device.createTexture({size:[w,h],format:'r8unorm',usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.RENDER_ATTACHMENT});}
+  const pass=encoder.beginRenderPass({colorAttachments:[{view:visibilityTexture.createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});
+  pass.setPipeline(regionVisibilityPipeline);pass.setBindGroup(0,bind(screen,tiles.length+4,[0,0,0,0,min,max,palette,hdr,w,h,0,p3,selected,Number(emphasis)||0,edges,0,selectedElevation,highlightWidth,0,0]));pass.draw(3);pass.end();
+ }
+ let readback,output,groups,reductionOptions;if(reduce&&!reductionBusy){groups=Math.ceil(w*h/4096);reductionOptions=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(reductionOptions,0,new Float32Array([noOcean?1:0,regionFilter&&regionMask?1:0,0,0]));output=device.createBuffer({size:groups*8,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});readback=device.createBuffer({size:groups*8,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});const pass=encoder.beginComputePass();pass.setPipeline(reducePipeline);pass.setBindGroup(0,device.createBindGroup({layout:reducePipeline.getBindGroupLayout(0),entries:[{binding:0,resource:screenView},{binding:1,resource:{buffer:output}},{binding:2,resource:{buffer:reductionOptions}},{binding:3,resource:visibilityTexture.createView()}]}));pass.dispatchWorkgroups(groups);pass.end();encoder.copyBufferToBuffer(output,0,readback,0,groups*8);reductionBusy=true;}
  device.queue.submit([encoder.finish()]);
  if(exportReadback)exportReadback.read().then(result=>exportRequest.resolve({...result,colorSpace:p3?'display-p3':'srgb'}),error=>exportRequest.reject(error)).finally(()=>exportTexture.destroy());
  if(readback){readback.mapAsync(GPUMapMode.READ).then(()=>{const values=new Float32Array(readback.getMappedRange());let lo=1e30,hi=-1e30;for(let i=0;i<values.length;i+=2){lo=Math.min(lo,values[i]);hi=Math.max(hi,values[i+1]);}readback.unmap();reductionBusy=false;onExposure(lo,hi);}).catch(error=>{reductionBusy=false;console.warn('Exposure readback failed',error);}).finally(()=>{readback.destroy();output.destroy();reductionOptions.destroy();});return true;}return false;

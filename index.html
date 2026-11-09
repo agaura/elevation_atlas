@@ -194,13 +194,13 @@
                         <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
-                        <span class="key-command">Hold <kbd>Shift</kbd> to preview highlight</span> · <span class="key-command"><kbd>Shift-click</kbd> to keep</span></p>
+                        <span class="key-command">Hold <kbd>⌘ / Ctrl</kbd> to isolate region</span><br><span class="key-command">Hold <kbd>Shift</kbd> to preview highlight</span> · <span class="key-command"><kbd>Shift-click</kbd> to keep</span></p>
                 </div>
                 <div class="eyebrow">DATA / ATTRIBUTION</div>
                 <p id="planetary-attribution" hidden>Sources: <a href="https://trek.nasa.gov/" target="_blank" rel="noreferrer">NASA Trek</a> · <a href="https://stac.astrogeology.usgs.gov/" target="_blank" rel="noreferrer">USGS Astrogeology</a> · <a href="https://planetarynames.wr.usgs.gov/" target="_blank" rel="noreferrer">IAU / USGS Names</a></p>
                 <p id="earth-attribution"><a href="https://mapterhorn.com/attribution" target="_blank" rel="noreferrer">Mapterhorn / terrain
                         sources</a><br><a href="https://openwaters.io/charts/seascape#license" target="_blank"
-                        rel="noreferrer">Open Waters / Seascape sources</a> · <a href="https://www.gebco.net/" target="_blank" rel="noreferrer">GEBCO Compilation Group 2025</a> · <a href="https://source.coop/ausantarctic/gebco" target="_blank" rel="noreferrer">Australian Antarctic Division / Source Cooperative</a><br><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
+                        rel="noreferrer">Open Waters / Seascape sources</a> · <a href="https://www.gebco.net/" target="_blank" rel="noreferrer">GEBCO Compilation Group 2025</a> · <a href="https://source.coop/ausantarctic/gebco" target="_blank" rel="noreferrer">Australian Antarctic Division / Source Cooperative</a><br><a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a><br>Region masks: <a href="https://www.geoboundaries.org/" target="_blank" rel="noreferrer">geoBoundaries (CC BY 4.0)</a> · <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a></p>
             </footer>
         </aside>
         <main id="map-panel">
@@ -225,12 +225,13 @@
                     </svg>
                 </button>
                 <div class="canvas-readouts">
-                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div></div>
+                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div><div id="region-status" role="status"></div></div>
                     <div class="canvas-right-readouts">
                     <div id="distance-scale" class="distance-scale" role="img" aria-label="Distance scale at the center of the view" title="Distance at the center of the view">
                         <span id="distance-scale-label"></span>
                         <span id="distance-scale-line"></span>
                     </div>
+                    <div id="region-pin-readout" class="canvas-probe" role="group" aria-label="Pinned region" hidden><div class="probe-heading"><span>Pinned Region</span><button id="region-unpin" type="button">Clear</button></div><div id="region-pin-name"></div></div>
                     <div id="canvas-location-stack" class="canvas-location-stack" hidden>
                         <div id="canvas-probe" class="canvas-probe" role="group" aria-label="Location readings" hidden>
                             <div id="cursor-readout" class="probe-readout" hidden>

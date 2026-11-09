@@ -27,10 +27,13 @@ Sphere is the default view. The top-bar selector switches between **Earth, Mars,
 
 Keyboard shortcuts: **E** toggles edge highlighting, **H** toggles highlighting, **U** toggles water, **F** toggles fullscreen, **M** toggles map labels, **Shift + M** locks the full elevation range for the selected body (press again to restore Auto Color Range), and **O** toggles Flat/Sphere. **G** opens Google Maps; **0** / **Shift + 0** set and lock the minimum/maximum to sea level; press again to restore the previous value and lock state. **R** restores sidebar defaults while preserving map mode and fullscreen. With highlighting enabled, **, / .** lower/raise its elevation; hold **Shift** to adjust half-width instead. Hold a punctuation key for smooth, continuous adjustment. Shortcuts remain available on buttons and toggles, but pause while typing in any text or number field.
 
+Hold **Command** (Mac) or **Control** while hovering over Earth to isolate the country, state/province, or county/district under the cursor, following the map boundary zoom levels. This works with Map Labels off. Release the key or leave the canvas to restore the full view. Command/Ctrl-click pins the mask; hold Command/Ctrl to preview another region and release to return to the pinned region. Use Clear in its bottom-right readout to remove it. Mask changes fade, and automatic elevation limits use only visible terrain inside the selected region. Boundaries load on demand; unavailable detailed coverage falls back to a coarser region.
+
 Hold **Shift** to preview highlight at the hovered elevation; release to restore the previous highlight. **Shift-click** keeps the selected elevation. Active highlight elevation and half-width appear below the canvas location readings.
 
 ## Data and credits
 
+- [geoBoundaries](https://www.geoboundaries.org/) (CC BY 4.0) and [Natural Earth](https://www.naturalearthdata.com/): administrative hover masks.
 - [IAU / USGS Gazetteer](https://planetarynames.wr.usgs.gov/GIS_Downloads): approved Mars/Moon feature names, bundled as compact catalogs and loaded on demand. Refresh with `python3 tools/update-planetary-names.py`.
 - [NASA Trek](https://trek.nasa.gov/): global Mars/Moon terrain meshes; [USGS Astrogeology](https://stac.astrogeology.usgs.gov/): local Mars CTX and lunar Kaguya elevation refinement.
 - [Mapterhorn](https://mapterhorn.com/data-access/): land elevations; see [source attribution](https://mapterhorn.com/attribution).
