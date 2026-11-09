@@ -162,21 +162,7 @@ fn colorMapAntarctica(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32
   let angleOffset = 4.68;
   let angle = t * 6.2831853 * coverage + angleOffset;
   var lab = vec3<f32>(lightness, chroma * cos(angle), chroma * sin(angle));
-  let emphasis = emphasisWeight;
-  let minimumHdrLightness = 0.25;
-  let potentialMax = oklabToLinearP3(lab);
-  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
-  let hdrFactor = hdrScale;
-  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
-  let peak = max(boundary.x, max(boundary.y, boundary.z));
-  let saturatedBoundaryP3 = hdrFactor * boundary / max(peak, 0.000001);
-  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
-  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
-  let scale = clamp(2. / saturatedY, 1.25, 1.75);
-  saturatedP3 *= scale;
-  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
-
-  return mix(lab, saturated, emphasis);
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 fn colorMapThermal(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emphasisEnabled: bool) -> vec3<f32> {
   let t = - t0;
@@ -242,20 +228,7 @@ fn colorMapThermal(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, e
     let oklabRed = linearP3ToOKLab(red * (tempY/redY * (1.)));
     lab = mix(lab, oklabRed, clamp(0., 1.0, (t0 - threshold) * 4.));
   }
-  let emphasis = emphasisWeight;
-  let potentialMax = oklabToLinearP3(lab);
-  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
-  let hdrFactor = hdrScale;
-  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
-  let peak = max(boundary.x, max(boundary.y, boundary.z));
-  let saturatedBoundaryP3 = 4. * boundary / max(peak, 0.000001);
-  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
-  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
-  let scale = clamp(2. / saturatedY, 1.25, 1.75);
-  saturatedP3 *= scale;
-  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
-
-  return mix(lab, saturated, emphasis);
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 
 
@@ -285,21 +258,7 @@ fn colorMapPolarHaunt(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32
   let angleOffset = 5.0;
   let angle = t * 6.2831853 * coverage + angleOffset;
   var lab = vec3<f32>(lightness, chroma * cos(angle), chroma * sin(angle));
-  let emphasis = emphasisWeight;
-  let minimumHdrLightness = 0.25;
-  let potentialMax = oklabToLinearP3(lab);
-  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
-  let hdrFactor = hdrScale;
-  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
-  let peak = max(boundary.x, max(boundary.y, boundary.z));
-  let saturatedBoundaryP3 = hdrFactor * boundary / max(peak, 0.000001);
-  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
-  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
-  let scale = clamp(2. / saturatedY, 1.25, 1.75);
-  saturatedP3 *= scale;
-  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
-
-  return mix(lab, saturated, emphasis);
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 
 
@@ -345,20 +304,7 @@ fn colorMapTropicalFire(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f
     let oklabRed = linearP3ToOKLab(red * (tempY/redY * (1.)));
     lab = mix(lab, oklabRed, clamp(0., 1.0, (t0 - threshold) * 4.));
   }
-  let emphasis = emphasisWeight;
-  let potentialMax = oklabToLinearP3(lab);
-  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
-  let hdrFactor = hdrScale;
-  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
-  let peak = max(boundary.x, max(boundary.y, boundary.z));
-  let saturatedBoundaryP3 = hdrFactor * boundary / max(peak, 0.000001);
-  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
-  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
-  let scale = clamp(2. / saturatedY, 1.25, 1.75);
-  saturatedP3 *= scale;
-  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
-
-  return mix(lab, saturated, emphasis);
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 
 fn colorMapAmber(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emphasisEnabled: bool) -> vec3<f32> {
@@ -385,21 +331,50 @@ fn colorMapAmber(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emp
   let angleOffset = 1.234 - 0.63;
   let angle = t * 6.2831853 * coverage + angleOffset;
   var lab = vec3<f32>(lightness, chroma * cos(angle), chroma * sin(angle));
-  let emphasis = emphasisWeight;
-  let minimumHdrLightness = 0.25;
-  let potentialMax = oklabToLinearP3(lab);
-  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
-  let hdrFactor = hdrScale;
-  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.));
-  let peak = max(boundary.x, max(boundary.y, boundary.z));
-  let saturatedBoundaryP3 = hdrFactor * boundary / max(peak, 0.000001);
-  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
-  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
-  let scale = clamp(2. / saturatedY, 1.25, 1.75);
-  saturatedP3 *= scale;
-  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
+}
 
-  return mix(lab, saturated, emphasis);
+fn emphasizeColor(lab:vec3f,weight:f32,hdr:f32,enabled:bool)->vec3f {
+  if(!enabled||weight<=0.){return lab;}
+  let base=oklabToLinearP3(lab);
+  let neutral=oklabToLinearP3(vec3f(lab.x,0.,0.));
+  // Choose saturation at the source brightness, before HDR normalization.
+  let boundary=firstBoundaryHit(neutral,base,vec3f(0.),vec3f(4.));
+  let saturated=mix(neutral,boundary,.99999);
+  let ratio=distance(base,neutral)/max(distance(saturated,neutral),.000001);
+  let amount=clamp(1.5*pow(ratio,2./3.),0.,1.);
+  let chosen=mix(neutral,saturated,amount);
+  // Only the chosen color determines brightness; no directional endpoint gain.
+  let peak=max(chosen.x,max(chosen.y,chosen.z));
+  let destination=chosen*hdr/max(peak,.000001);
+  return mix(lab,linearP3ToOKLab(destination),weight);
+}
+
+fn colorMapStyx(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emphasisEnabled: bool) -> vec3<f32> {
+  let t = - t0;
+  let coverage = -.757;
+  let luminanceCoverage = 0.5;
+  let luminanceCycle = mix((cosineWave(luminanceCoverage * t + 1.5) + 1.0) * 0.5, (triangleWave(luminanceCoverage * t + 1.5) + 1.0) * 0.5, 1.);
+  let lightness = mix(0.2, 1.175 + 0.10 * t, luminanceCycle);
+  let chromaStart = .018;
+  let chromaMid = .054;
+  let chromaEnd = -.028;
+  let chromaMidT = 0.5;
+  let oneMinusChromaMidT = 1.0 - chromaMidT;
+  let chromaControl = (
+    chromaMid -
+    oneMinusChromaMidT * oneMinusChromaMidT * chromaStart -
+    chromaMidT * chromaMidT * chromaEnd
+  ) / (2.0 * oneMinusChromaMidT * chromaMidT);
+  let chroma = mix(
+    mix(chromaStart, chromaControl, luminanceCycle),
+    mix(chromaControl, chromaEnd, luminanceCycle),
+    luminanceCycle
+  );
+  let angleOffset = 265.*3.141592653589793/180.;
+  let angle = t * 6.2831853 * coverage + angleOffset;
+  var lab = vec3<f32>(lightness, chroma * cos(angle), chroma * sin(angle));
+  return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 
 `;
@@ -427,12 +402,19 @@ export const COLOR_MAPS = [
   },
   {
     "id": 3,
-    "label": "Spirit",
+    "label": "Phantom",
     "shader": "colorMapPolarHaunt"
   },
   {
     "id": 4,
     "label": "Hawaii",
     "shader": "colorMapTropicalFire"
+  },
+  {
+    "id": 10,
+    "label": "Styx",
+    "shader": "colorMapStyx"
   }
 ];
+
+export const HIGHLIGHT_HDR_TARGET = 4;

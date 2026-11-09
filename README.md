@@ -15,7 +15,7 @@ Visit http://localhost:8080. No build step or API keys are required. WebGPU need
 ## Controls
 
 - **Navigate:** drag to pan/rotate, scroll or pinch to zoom, and double-click/tap to zoom in. Arrow keys or WASD move continuously; +/− zoom. Search accepts coordinates or place/address names.
-- **Color:** choose Grayscale, Thermal (default), Earth, Arctic Ocean, Hawaii, or Spirit. The arrow button reverses the palette.
+- **Color:** choose Grayscale, Thermal (default), Earth, Arctic Ocean, Hawaii, Phantom, or Styx. The arrow button reverses the palette.
 - **Range:** Auto Color Range follows the visible elevations. Turn it off to edit the limits. Locks stop automatic adjustment while allowing manual edits; Auto Slider Range controls the sliders’ available bounds.
 - **Highlight:** hover over the color strip to preview an elevation, or click/drag to select it. Adjust Elevation and Half-Width; their locks keep values fixed in meters instead of following the color range.
 - **Pulse:** enabled initially with Highlight and remembered when Highlight is toggled; sweeps the color range every 5 seconds without a delay. Turn Pulse off to reveal and lock the Elevation control.

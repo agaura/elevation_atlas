@@ -1,3 +1,4 @@
+import {HIGHLIGHT_HDR_TARGET} from './colors.js';
 import {googleMapsUrl} from './google-maps.js';
 import {distanceScale} from './scale-bar.js';
 import {highlightPulse,pulseElapsedAtElevation} from './highlight-pulse.js';
@@ -261,7 +262,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:toneMapping==='extended'?2:1,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,waterOpacity:waterTransition.valueAt(time),sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:!$('water').checked,waterOpacity:waterTransition.valueAt(time),sphere:globeCamera,mapOverlay:mapMask,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
