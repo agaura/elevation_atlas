@@ -6,7 +6,7 @@ import {createMapPass} from './map-gpu.js';
 import {COLOR_WGSL,COLOR_MAPS} from './colors.js';
 const quad=`struct Out{@builtin(position) position:vec4f,@location(0) uv:vec2f}
 @vertex fn full(@builtin(vertex_index)i:u32)->Out{let points=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));var o:Out;o.position=vec4f(points[i],0,1);o.uv=vec2f((points[i].x+1)*.5,(1-points[i].y)*.5);return o;}`;
-const params=`struct Params{rect:vec4f,range:vec4f,screen:vec4f,effects:vec4f,highlight:vec4f,maskView:vec4f,maskBounds:vec4f,maskCenter:vec4f,maskRight:vec4f,maskUp:vec4f,maskFront:vec4f}
+const params=`struct Params{rect:vec4f,range:vec4f,screen:vec4f,effects:vec4f,highlight:vec4f,maskView:vec4f,maskBounds:vec4f,maskCenter:vec4f,maskRight:vec4f,maskUp:vec4f,maskFront:vec4f,edgeRange:vec4f}
 @group(0) @binding(0) var terrain:texture_2d<f32>;
 @group(0) @binding(1) var<uniform> p:Params;
 @group(0) @binding(2) var mapMask:texture_2d<f32>;
@@ -79,7 +79,7 @@ if(p.range.z<.5&&emphasis){let base=linearP3ToOKLab(decodeSRGB(c));let peak=line
 if(p.range.z>.5){var lab:vec3f;switch u32(p.range.z){
 ${COLOR_MAPS.filter(map=>map.shader).map(map=>`case ${map.id}u:{lab=${map.shader}(colorT,p.effects.x,weight,p.range.w,emphasis);}`).join('\n')}
 default:{lab=colorMapThermal(colorT,p.effects.x,weight,p.range.w,emphasis);}}c=max(oklabToP3(lab),vec3f(0));}
-if(!legend&&validTerrain&&p.effects.z>0.&&terrainEdge>=0.){let edge=terrainEdge/max(p.range.y-p.range.x,.00001);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(.5,5.5,pow(edge,.75)),.5,4.),p.effects.z);scale=min(scale,8./max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
+if(!legend&&validTerrain&&p.effects.z>0.&&terrainEdge>=0.){let edge=terrainEdge/max(max(p.range.y-p.range.x,p.edgeRange.x),.00001);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(.5,5.5,pow(edge,.75)),.5,4.),p.effects.z);scale=min(scale,8./max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
 if(!legend&&!validTerrain){c=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);}
 if(!legend&&water&&validTerrain){let background=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);c=encodeSRGB(mix(decodeSRGB(background),decodeSRGB(c),1.-p.effects.w));}
 if(!legend&&p.highlight.w>.5){
@@ -124,12 +124,14 @@ export async function createRenderer(device,format,context,legendContext,swatchC
  let screen,screenView,w=0,h=0,uniforms=[],reductionBusy=false,heightDirty=true,edgesAvailable=false,captureRequest=null;
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
  const regionTextures=new Map();
- function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:176,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture||u.region!==regionTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.region=regionTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()},{binding:4,resource:regionTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array([...data,...regionUniforms]));return u.group;}
+ let visibleElevationSpan=0;
+ function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:192,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture||u.region!==regionTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.region=regionTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()},{binding:4,resource:regionTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array([...data,...regionUniforms,visibleElevationSpan,0,0,0]));return u.group;}
  device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
  return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return regionBytes+visibilityWidth*visibilityHeight+w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
- },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
+ },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,displayedElevationSpan=max-min,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
+ visibleElevationSpan=Math.max(0,displayedElevationSpan);
  if(edges>0.&&!edgesAvailable)heightDirty=true;
  edgesAvailable=edges>0.;
  resize(canvas.width,canvas.height);

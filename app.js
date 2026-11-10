@@ -286,7 +286,8 @@ function render(time=performance.now()){
  $('region-pin-readout').hidden=!regionMask.pinned;
  if(regionMask.pinned)$('region-pin-name').textContent=regionMask.pinnedCaption;
  const revision=exposureConfig;let renderTiles=globeCamera?tiles:flatRenderTiles();
- const pendingExposure=exposureDirty&&(!locks.min||!locks.max||$('auto-slider-range').checked);
+ // Visible bounds also normalize edges, even when both color limits are locked.
+ const pendingExposure=exposureDirty;
  const entries=[...new Set([cache.get('0/0/0'),...renderTiles.map(t=>cache.get(t.sourceKey??t.key))])].filter(e=>e?.state==='ready'&&!e.texture);
  const budget=movingView(time)?2:4;
  for(const entry of entries.slice(0,budget))uploadTerrainTexture(device,entry);
@@ -294,7 +295,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,displayedElevationSpan:viewBounds.max-viewBounds.min,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
