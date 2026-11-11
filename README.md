@@ -1,58 +1,56 @@
 # Elevation Atlas
 
-A WebGPU elevation explorer with flat and globe views, wide-gamut HDR color maps, terrain edge highlighting, and optional roads, borders, and labels. Inspired by [Heightmapper](https://tangrams.github.io/heightmapper/).
+A WebGPU terrain and imagery explorer for **Earth, Mars, and the Moon**, with flat/globe views and wide-gamut HDR color maps. Inspired by [Heightmapper](https://tangrams.github.io/heightmapper/).
 
 ## Run locally
 
-Open `index.html` with a local web server, or run:
+Open `index.html` through a local web server, or run:
 
 ```sh
 npm start
 ```
 
-Visit http://localhost:8080. No build step or API keys are required. WebGPU needs a supported browser/GPU and localhost or HTTPS; a phone accessing a local server over plain HTTP will not have WebGPU access.
+Visit http://localhost:8080. No build step or API keys are required. WebGPU requires a compatible browser/GPU and a secure context (HTTPS or localhost). There is no WebGL fallback. HDR and P3 display capability warnings appear in the sidebar when needed.
 
-## Controls
+## Explore
 
-Sphere is the default view. The top-bar selector switches between **Earth, Mars, and the Moon**, remembering each view during the session. Planetary views support the same HDR palettes, highlighting, coordinates, scale bar and exports; water, streets and address search are Earth-only. Search on Mars and the Moon accepts coordinates or geographic feature names, such as Olympus Mons or Tycho. Map Labels also works on Mars and the Moon, showing official IAU/USGS names. Share a planetary view using its URL (`?body=mars` or `?body=moon`).
+- **Navigate:** drag to pan/rotate, scroll or pinch to zoom, or double-click/tap to zoom in. Search accepts coordinates, Earth addresses/places, and named Mars/Moon features. Right-click on desktop or long-press on mobile to pin coordinates and elevation.
+- **Terrain:** choose Grayscale, Amber, Thermal (default), Arctic Ocean, Hawaii, Phantom, Styx, or Rainbow; reverse the palette with the arrow button. Auto Color Range follows visible elevations. Turn it off to edit limits; locks hold values while allowing manual edits. Auto Slider Range adjusts the sliders’ bounds. Underwater is Earth-only.
+- **Highlight:** hover over the vertical color strip to preview, or click/drag to select. Pulse sweeps the range every five seconds; turn it off to edit Elevation. Elevation and Half-Width locks hold meters instead of a position or fraction of the color range. Hold Shift over terrain to preview its elevation; Shift-click keeps the selection.
+- **Map View:** toggle labels, contours, the coordinate grid, and Sphere. Earth labels include roads, borders, and geographic features; Mars/Moon labels use official planetary names. Contours brighten terrain within the selected color range, with matching levels beside the color strip. The scale bar appears in Sphere view.
+- **Imagery:** the satellite/mountain button switches between photographic imagery and elevation colors. Imagery dates vary; these are not live feeds. Missing imagery stays dark. The Terrain section hides in imagery mode, while map overlays remain available.
+- **Region masks (Earth):** hold Command (Mac) or Control while hovering to isolate an administrative region, even with Map Labels off. Click while holding the modifier to pin it; Clear removes it. Auto Color Range follows the visible region.
+- **Toolbar:** open the Earth view in Google Maps, enter fullscreen, or download the rendered image as full-resolution HDR AVIF. Downloads include rendered map layers but exclude UI readouts. HDR playback depends on the viewer and display.
 
-- **Navigate:** drag to pan/rotate, scroll or pinch to zoom, and double-click/tap to zoom in. Arrow keys or WASD move continuously; +/− zoom. Search accepts coordinates or place/address names.
-- **Color:** choose Grayscale, Thermal (default), Earth, Arctic Ocean, Hawaii, Phantom, or Styx. The arrow button reverses the palette.
-- **Range:** Auto Color Range follows the visible elevations. Turn it off to edit the limits. Locks stop automatic adjustment while allowing manual edits; Auto Slider Range controls the sliders’ available bounds.
-- **Highlight:** hover over the color strip to preview an elevation, or click/drag to select it. Adjust Elevation and Half-Width; their locks keep values fixed in meters instead of following the color range.
-- **Pulse:** enabled initially with Highlight and remembered when Highlight is toggled; sweeps the color range every 5 seconds without a delay. Turn Pulse off to reveal and lock the Elevation control.
-- **Rendering:** Underwater, Edge Highlighting, and Map Labels toggle their respective layers. Contours adds elevation lines within the selected color range with zoom-dependent spacing, brightening terrain without desaturating it. Matching contour bands and elevation labels appear in the color legend. Coordinate Grid adds a zoom-aware degree grid in either projection, independently of map labels. Map labels include rivers, peaks, lakes and parks where supplied, with smaller features appearing as you zoom in. Rendering Details shows resolution, tile coverage, and GEBCO refinement status.
-- **Locations:** desktop hover shows coordinates and elevation. Right-click on desktop or press and hold on mobile to pin a location.
-- **Fullscreen and download:** use the canvas/header buttons. Downloads save the rendered terrain and map layers as HDR AVIF at full device-pixel resolution, excluding UI overlays. HDR viewing requires a compatible viewer and display.
+Location links include the map center/zoom and selected body (`?body=mars` or `?body=moon`), **not sidebar settings**.
 
-Keyboard shortcuts: **E** toggles edge highlighting, **H** toggles highlighting, **U** toggles water, **F** toggles fullscreen, **T** toggles Satellite/Terrain, **M** toggles map labels, **C** toggles contours, **G** toggles the coordinate grid, **Shift + M** locks the full elevation range for the selected body (press again to restore Auto Color Range), and **O** toggles Flat/Sphere. **0** / **Shift + 0** set and lock the minimum/maximum to sea level; press again to restore the previous value and lock state. **R** restores sidebar defaults while preserving map mode and fullscreen. With highlighting enabled, **, / .** lower/raise its elevation; hold **Shift** to adjust half-width instead. Hold a punctuation key for smooth, continuous adjustment. Shortcuts remain available on buttons and toggles, but pause while typing in any text or number field.
+## Keyboard
 
-Hold **Command** (Mac) or **Control** while hovering over Earth to isolate the country, state/province, or county/district under the cursor, following the map boundary zoom levels. This works with Map Labels off. Release the key or leave the canvas to restore the full view. Command/Ctrl-click pins the mask; hold Command/Ctrl to preview another region and release to return to the pinned region. Use Clear in its bottom-right readout to remove it. Mask changes fade, and automatic elevation limits use only visible terrain inside the selected region. Boundaries load on demand; unavailable detailed coverage falls back to a coarser region.
+Shortcuts pause while typing in text or number inputs.
 
-Hold **Shift** to preview highlight at the hovered elevation; release to restore the previous highlight. **Shift-click** keeps the selected elevation. Active highlight elevation and half-width appear below the canvas location readings.
+| Keys | Action |
+| --- | --- |
+| WASD / arrows; + / − | Pan; zoom |
+| E / H / U | Edge Highlighting / Highlight / Underwater |
+| M / C / G | Map Labels / Contours / Coordinate Grid |
+| O / T / F | Sphere / Satellite–Terrain / Fullscreen |
+| , / . | Lower / raise highlight elevation; Shift adjusts half-width |
+| 0 / Shift + 0 | Set and lock min / max to sea level; repeat to restore |
+| Shift + M | Full elevation range / Auto Color Range |
+| R | Reset sidebar settings, preserving map mode and fullscreen |
 
 ## Data and credits
 
-- [geoBoundaries](https://www.geoboundaries.org/) (CC BY 4.0) and [Natural Earth](https://www.naturalearthdata.com/): administrative hover masks.
-- [IAU / USGS Gazetteer](https://planetarynames.wr.usgs.gov/GIS_Downloads): approved Mars/Moon feature names, bundled as compact catalogs and loaded on demand. Refresh with `python3 tools/update-planetary-names.py`.
-- [NASA Trek](https://trek.nasa.gov/): global Mars/Moon terrain meshes; [USGS Astrogeology](https://stac.astrogeology.usgs.gov/): local Mars CTX and lunar Kaguya elevation refinement.
-- [Mapterhorn](https://mapterhorn.com/data-access/): land elevations; see [source attribution](https://mapterhorn.com/attribution).
-- [Open Waters Seascape](https://github.com/openwatersio/seascape/blob/main/docs/schema.md): bathymetry and water classification; see [license](https://openwaters.io/charts/seascape#license).
-- [GEBCO_2025](https://source.coop/ausantarctic/gebco): broad-scale ocean refinement, streamed from the Australian Antarctic Division’s public dataset; see [GEBCO terms](https://www.gebco.net/data-products/gridded-bathymetry-data).
-- [OpenFreeMap](https://openfreemap.org/) / [OpenStreetMap contributors](https://www.openstreetmap.org/copyright): roads, boundaries, and labels.
-- [Photon](https://photon.komoot.io/): address/place search, queried only on submission. Coordinate searches stay local.
+- **Earth terrain:** [Mapterhorn](https://mapterhorn.com/attribution), [Open Waters Seascape](https://openwaters.io/charts/seascape#license), and [GEBCO_2025](https://source.coop/ausantarctic/gebco) ([terms](https://www.gebco.net/data-products/gridded-bathymetry-data)). Seascape loads first; broad ocean views refine to GEBCO in the background, silently with Underwater off.
+- **Planetary terrain:** [NASA Trek](https://trek.nasa.gov/) global meshes, with local [USGS Astrogeology](https://stac.astrogeology.usgs.gov/) elevation refinement where available.
+- **Imagery:** [Esri World Imagery](https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer) (Earth), [Caltech CTX V01](https://murray-lab.caltech.edu/CTX/V01/SceneView/intro_c.html) (Mars; NASA/JPL-Caltech/MSSS), and JAXA/SELENE Kaguya TC via [NASA Trek](https://trek.nasa.gov/moon/) (Moon). Provider credits appear on the canvas.
+- **Map labels:** [OpenFreeMap](https://openfreemap.org/) / [OpenStreetMap contributors](https://www.openstreetmap.org/copyright); [IAU / USGS Gazetteer](https://planetarynames.wr.usgs.gov/GIS_Downloads) for Mars/Moon names.
+- **Region masks:** [geoBoundaries](https://www.geoboundaries.org/) (CC BY 4.0) and [Natural Earth](https://www.naturalearthdata.com/).
+- **Earth search:** [Photon](https://photon.komoot.io/), queried on submission. Coordinate searches stay local.
 
-Seascape loads first; broad ocean views refine to GEBCO in the background. Finer views retain Seascape when they exceed GEBCO’s native resolution. Refinement continues silently with Underwater off. Unknown-depth water falls back to Mapterhorn where available.
+Rendering uses device-pixel resolution and floating-point elevations, with bounded requests and caches. Source coverage, resolution, vertical datums, and mosaic illumination vary; seams and gaps can occur. Polar caps beyond approximately ±85.05° are not rendered. Planetary meshes can reveal triangular facets. Inland-water elevations use an experimental Mapterhorn surface estimate plus Seascape depth and may be inaccurate. This is a visualization, not a navigation chart.
 
-Inland-water elevations use an experimental Mapterhorn surface estimate plus Seascape’s negative depth, using nearby water samples to reduce shoreline outliers. Unknown depths retain Mapterhorn elevations. GEBCO refines the ocean while inland water retains the same estimate. This assumes positive Mapterhorn water elevations represent the surface, and can be inaccurate where they represent the lake bed.
-
-Rendering uses the full device pixel ratio and floating-point elevation textures. Detail is limited by the underlying surveys, and the polar caps beyond approximately ±85.05° are not covered. Sources have different vertical datums and may show seams. This is a visualization, not a navigation chart or seamless geodetic dataset.
-
-Visible planetary terrain requests two extra mesh levels (four times finer nominal spacing), while retaining a coarse world preview and bounded requests. High-latitude cells refine further according to their projected Mercator height, with a per-output-tile budget; the flat projection still stretches polar terrain. Planetary global terrain is a simplified mesh, so edge highlighting can reveal triangles. At close zooms, available USGS raster patches refine it in the background; these surveys have partial coverage and varying quality. Mars uses MOLA/areoid-adjusted heights; lunar heights use a 1,737.4 km reference sphere. The current Mercator renderer also leaves planetary polar caps uncovered.
-
-Requests use bounded concurrency, retries, and memory/disk caches. Only needed terrain is requested; the app does not prefetch the whole Earth. HDR output depends on browser, OS, and display support.
-
-Bundled libraries include [GeoTIFF.js](https://github.com/geotiffjs/geotiff.js) and [@jsquash/avif](https://github.com/jamsinclair/jSquash). Library and font license notices are included in `vendor/` and `fonts/`.
+Bundled library and font licenses are in `vendor/` and `fonts/`, including [GeoTIFF.js](https://github.com/geotiffjs/geotiff.js) and [@jsquash/avif](https://github.com/jamsinclair/jSquash).
 
 ## Tests
 
@@ -60,12 +58,10 @@ Bundled libraries include [GeoTIFF.js](https://github.com/geotiffjs/geotiff.js) 
 npm test
 ```
 
-Optional Chrome/WebGPU integration tests use a separately installed Playwright:
+Optional browser/GPU checks use a separately installed Playwright:
 
 ```sh
 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/webgpu.mjs
 ```
 
-Additional integration scripts in `tests/` cover terrain gradients, map rendering, caching, GEBCO, and HDR export.
-
-The satellite button switches between elevation colors and photographic imagery: Esri World Imagery for Earth, Caltech CTX V01 for Mars, and Kaguya TC via NASA Trek for the Moon. Imagery dates vary by location and mosaic; these are not live feeds. Tiles load only while imagery is enabled, with coarse fallback and bounded GPU caching. Missing imagery stays neutral instead of showing elevation colors. Map labels, the coordinate grid, contours, region masks, and image downloads remain available.
+Additional scripts in `tests/` cover imagery, overlays, terrain processing, caching, and HDR export.
