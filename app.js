@@ -229,7 +229,12 @@ function updateViewNow(){if(!device||!metadata)return;invalidateTerrain();dpr=wi
  const maxzoom=Math.min(metadata.land.maxzoom??18,metadata.sea.maxzoom??18),tileSize=Math.min(metadata.land.tileSize||512,metadata.sea.tileSize||512);
  globeCamera=isSphere()?sphereCamera(view,width,height,dpr,sphereZoom):null;
  updateGoogleMapsLink();
- const distanceBar=distanceScale(view,width,globeCamera?globeCamera.radius/dpr:null,BODIES[body].radius);$('distance-scale-label').textContent=distanceBar.label;$('distance-scale-line').style.width=`${distanceBar.width}px`;
+ $('distance-scale').hidden=!globeCamera;
+ if(globeCamera){
+  const distanceBar=distanceScale(view,width,globeCamera.radius/dpr,BODIES[body].radius);
+  $('distance-scale-label').textContent=distanceBar.label;
+  $('distance-scale-line').style.width=`${distanceBar.width}px`;
+ }
 
  const z=sourceZoom(view.zoom,dpr,tileSize,maxzoom);tiles=globeCamera?sphereTiles(globeCamera,maxzoom,tileSize):visibleTiles(view,width,height,z);if(globeCamera&&!tiles.some(t=>t.z===0))tiles.unshift({z:0,x:0,y:0,key:'0/0/0',fallback:true});const requested=[...tiles].sort((a,b)=>Number(!!a.fallback)-Number(!!b.fallback));if(!requested.some(t=>t.z===0))requested.push({z:0,x:0,y:0,key:'0/0/0',fallback:true});if(!isEarth())requested.sort((a,b)=>a.z-b.z);const needed=new Set(requested.map(t=>t.key));queue=[];
  for(const [key,entry] of cache){if(!needed.has(key))entry.refineAbort?.abort();if(!needed.has(key)&&entry.state!=='ready'){entry.abort.abort();cache.delete(key);}}

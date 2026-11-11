@@ -21,7 +21,7 @@ Sphere is the default view. The top-bar selector switches between **Earth, Mars,
 - **Range:** Auto Color Range follows the visible elevations. Turn it off to edit the limits. Locks stop automatic adjustment while allowing manual edits; Auto Slider Range controls the sliders’ available bounds.
 - **Highlight:** hover over the color strip to preview an elevation, or click/drag to select it. Adjust Elevation and Half-Width; their locks keep values fixed in meters instead of following the color range.
 - **Pulse:** enabled initially with Highlight and remembered when Highlight is toggled; sweeps the color range every 5 seconds without a delay. Turn Pulse off to reveal and lock the Elevation control.
-- **Rendering:** Water, Edge Highlighting, and Map Labels toggle their respective layers. Map labels include rivers, peaks, lakes and parks where supplied, with smaller features appearing as you zoom in. Rendering Details shows resolution, tile coverage, and GEBCO refinement status.
+- **Rendering:** Underwater, Edge Highlighting, and Map Labels toggle their respective layers. Map labels include rivers, peaks, lakes and parks where supplied, with smaller features appearing as you zoom in. Rendering Details shows resolution, tile coverage, and GEBCO refinement status.
 - **Locations:** desktop hover shows coordinates and elevation. Right-click on desktop or press and hold on mobile to pin a location.
 - **Fullscreen and download:** use the canvas/header buttons. Downloads save the rendered terrain and map layers as HDR AVIF at full device-pixel resolution, excluding UI overlays. HDR viewing requires a compatible viewer and display.
 
@@ -42,7 +42,7 @@ Hold **Shift** to preview highlight at the hovered elevation; release to restore
 - [OpenFreeMap](https://openfreemap.org/) / [OpenStreetMap contributors](https://www.openstreetmap.org/copyright): roads, boundaries, and labels.
 - [Photon](https://photon.komoot.io/): address/place search, queried only on submission. Coordinate searches stay local.
 
-Seascape loads first; broad ocean views refine to GEBCO in the background. Finer views retain Seascape when they exceed GEBCO’s native resolution. Refinement continues silently with Water off. Unknown-depth water falls back to Mapterhorn where available.
+Seascape loads first; broad ocean views refine to GEBCO in the background. Finer views retain Seascape when they exceed GEBCO’s native resolution. Refinement continues silently with Underwater off. Unknown-depth water falls back to Mapterhorn where available.
 
 Inland-water elevations use an experimental Mapterhorn surface estimate plus Seascape’s negative depth, using nearby water samples to reduce shoreline outliers. Unknown depths retain Mapterhorn elevations. GEBCO refines the ocean while inland water retains the same estimate. This assumes positive Mapterhorn water elevations represent the surface, and can be inaccurate where they represent the lake bed.
 

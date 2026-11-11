@@ -92,7 +92,7 @@ aside .lock-button{width:22px;height:22px}
 aside .lock-button[aria-pressed=true],aside #palette-flip[aria-pressed=true]{background:transparent;color:var(--accent)}
 aside .slider-control.is-locked .control-heading>label{color:var(--fg)}
 aside .palette-picker{margin-top:0;gap:6px}
-aside .palette-picker #palette{min-height:28px;padding:5px 6px;border:0;background:var(--field-bg);font:10px monospace;cursor:pointer}
+aside .palette-picker #palette{height:26px;min-height:26px;padding:3px 6px;border:0;background:var(--field-bg);font:10px monospace;cursor:pointer}
 aside .palette-picker .icon-button{width:26px;height:26px;flex-basis:26px}
 aside .legend-wrap{margin-top:6px;border:0}
 aside #legend{height:25px}
@@ -303,3 +303,13 @@ aside .sea-button[aria-pressed="true"]{color:var(--accent);background:color-mix(
 #region-status:empty{display:none}
 
 #region-pin-readout{flex:none;width:248px;max-width:100%;margin-left:0}
+
+.distance-scale[hidden]{display:none}
+
+.location-tools{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;gap:5px;min-width:0;margin-inline:-4px;margin-bottom:-6px}
+.location-tools #celestial-body{height:26px;min-width:0;padding:3px 7px;background:var(--field-bg);font:10px monospace}
+.location-tools #location-search{min-width:0}
+
+.location-tools .search-row{min-height:26px;height:26px}
+.location-tools #location-query{padding:4px 0}
+.location-tools .search-row .icon-button{height:24px}

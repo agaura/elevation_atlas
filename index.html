@@ -19,8 +19,7 @@
                 <h1>Elevation <span>Atlas</span></h1>
             </div>
             <div class="header-right">
-                <div class="map-actions"><select id="celestial-body" aria-label="Celestial Body" title="Celestial Body" disabled><option value="earth">Earth</option><option value="mars">Mars</option><option value="moon">Moon</option></select><label class="toggle projection-toggle"><span class="projection-flat">Flat</span><input id="projection"
-                            type="checkbox" aria-label="Sphere View" checked><span class="projection-sphere">Sphere</span></label><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
+                <div class="map-actions"><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
                         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
                     </button><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
@@ -32,15 +31,18 @@
             </div>
         </header>
         <aside>
+            <div class="location-tools">
+                <select id="celestial-body" aria-label="Celestial Body" title="Celestial Body" disabled><option value="earth">Earth</option><option value="mars">Mars</option><option value="moon">Moon</option></select>
             <form id="location-search" role="search">
                 <label for="location-query" class="sr">Coordinates or Address</label>
-                <div class="search-row"><input id="location-query" type="search" placeholder="Coordinates or Address" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
+                <div class="search-row"><input id="location-query" type="search" placeholder="Location" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
                 <ul id="search-results" aria-label="Search results" hidden></ul>
                 <div id="search-status" role="status"></div>
             </form>
+            </div>
             <section class="color-controls">
                 <div id="water-control" class="control-expander" data-open="true" aria-hidden="false"><div class="control-expander-inner">
-                <label class="toggle water-toggle">Water <input
+                <label class="toggle water-toggle">Underwater <input
                         id="water" type="checkbox" role="switch"></label>
                 </div></div>
                 <label class="toggle">Auto Color Range <input id="auto-color-range" type="checkbox" role="switch" aria-controls="elevation-range-controls" checked></label>
@@ -166,6 +168,7 @@
                 <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
+                <label class="toggle">Sphere <input id="projection" type="checkbox" role="switch" aria-label="Sphere View" checked></label>
                 <details class="render-details">
                     <summary>Rendering Details</summary>
                     <span id="body-source" class="body-source" hidden></span>
@@ -191,7 +194,7 @@
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
                     <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
-                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Water</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
                         <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
