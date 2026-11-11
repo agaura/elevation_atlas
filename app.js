@@ -1,3 +1,4 @@
+import {Imagery,IMAGERY_SOURCES} from './imagery.js';
 import {setCanvasText,MapLabelText} from './canvas-text.js';
 import {contourInterval,contourLegendLevels} from './contours.js';
 import {Graticule} from './graticule.js';
@@ -28,6 +29,7 @@ import {sourceZoom,visibleTiles,wrap,minimumMapZoom,boundedMapY,maximumMapZoom} 
 const $=id=>document.getElementById(id), canvas=$('map'),legend=$('legend');
 const view={x:.5,y:.5,zoom:2};
 try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=boundedSphereY(saved[2]);}}catch{}
+let imagery=null,imageryMode=false;
 let device,context,legendContext,swatchContext,renderer,format,toneMapping,colorSpace='display-p3',tiles=[],cache=new Map(),active=0,queue=[],frame=0,dpr=1,width=1,height=1,min=-11000,max=8850,metadata;
 let sphereZoom=0,globeCamera=null;
 let body='earth',earthMetadata;const bodyViews=new Map();
@@ -37,8 +39,12 @@ function bodyRange(){return BODIES[body];}
 function syncGoogleMapsVisibility(){
  const panel=$('map-panel');
  const fullscreen=document.fullscreenElement===panel||panel.classList.contains('is-expanded');
- $('google-maps').hidden=!isEarth();
- $('fullscreen-google-maps').hidden=!isEarth()||!fullscreen;
+ for(const id of ['google-maps','fullscreen-google-maps']){
+  const button=$(id);
+  button.hidden=id==='fullscreen-google-maps'&&!fullscreen;
+  button.classList.toggle('maps-unavailable',!isEarth());
+  button.inert=!isEarth();button.setAttribute('aria-hidden',String(!isEarth()));
+ }
 }
 function updateGoogleMapsLink(){
  const rect=canvas.getBoundingClientRect();
@@ -136,7 +142,7 @@ const mobileBudget=matchMedia('(pointer: coarse)').matches;
 const cacheBudget=(mobileBudget?256:512)*1024*1024;
 function trimTerrainCache(){
  const needed=new Set(['0/0/0',...tiles.map(t=>t.key),...flatRenderTiles(true).map(t=>t.sourceKey??t.key)]);
- trimTerrain(cache,needed,{budget:cacheBudget,gpuBudget:(mobileBudget?48:128)*1024*1024,extraBytes:renderer?.memoryBytes?.(cache)||0});
+ trimTerrain(cache,needed,{budget:cacheBudget,gpuBudget:(mobileBudget?48:128)*1024*1024,extraBytes:(renderer?.memoryBytes?.(cache)||0)+(imagery?.bytes??0)});
 }
 function requestTerrain(t,signal,oceanSource,retry=false,timeouts=0){
  const id=++nextRequest;
@@ -289,6 +295,7 @@ function render(time=performance.now()){
  let mapMask=$('map-mode').checked?mapOverlay.draw({view,width,height,dpr,camera:globeCamera}):null;
  if($('graticule').checked)mapMask=graticule.draw(mapMask,{view,width,height,dpr,camera:globeCamera});
  mapLabelText.update(mapMask);
+ const satelliteScene=imageryMode?imagery?.update(body,{view,width,height,dpr,camera:globeCamera}):null;
  const centerLatitude=Math.atan(Math.sinh(Math.PI*(1-2*view.y)));
  const metersPerPixel=globeCamera?BODIES[body].radius/globeCamera.radius*dpr:2*Math.PI*BODIES[body].radius*Math.cos(centerLatitude)/(256*2**view.zoom);
  const contourSpacing=contourInterval(viewBounds.max-viewBounds.min,metersPerPixel);
@@ -311,7 +318,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,legendVertical:true,min,max,displayedElevationSpan:viewBounds.max-viewBounds.min,palette:Number($('palette').value),contours:$('contours').checked,contourInterval:contourSpacing,reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,legendVertical:true,min,max,displayedElevationSpan:viewBounds.max-viewBounds.min,palette:Number($('palette').value),contours:$('contours').checked,contourInterval:contourSpacing,reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,imagery:satelliteScene,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
@@ -325,7 +332,7 @@ function render(time=performance.now()){
  if(started)exposureDirty=false;if(pendingExposure&&!started)requestRender();if(regionTransition.active(time))requestRender();if(pulseSweeping||easing||domainEasing||highlightEasing||edgeTransition.active(time)||waterTransition.active(time)||highlightTransition.active(time))requestRender();
 }
 async function init(){if(!navigator.gpu)throw Error('WebGPU is unavailable. Open in a WebGPU browser on localhost or HTTPS.');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredLimits:{maxTextureDimension2D:adapter.limits.maxTextureDimension2D,maxTextureArrayLayers:adapter.limits.maxTextureArrayLayers}});device.lost.then(info=>{$('message').textContent='GPU device lost: '+info.message+'. Reload to reconnect.';});device.addEventListener('uncapturederror',e=>{$('message').textContent=e.error.message;console.error(e.error);});context=canvas.getContext('webgpu');legendContext=legend.getContext('webgpu');swatchContext=$('highlight-swatch').getContext('webgpu');let configured=false;for(const candidate of ['rgba16float',navigator.gpu.getPreferredCanvasFormat()]){for(const mode of ['extended','standard']){try{for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format:candidate,colorSpace,alphaMode:'opaque',toneMapping:{mode}});format=candidate;toneMapping=mode;configured=true;break;}catch{}}if(configured)break;}if(!configured){colorSpace='srgb';format=navigator.gpu.getPreferredCanvasFormat();toneMapping='standard';for(const ctx of [context,legendContext,swatchContext])ctx.configure({device,format,alphaMode:'opaque'});}
- $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext,swatchContext);
+ $('hdr').textContent=`${toneMapping==='extended'?'HDR':'SDR'} / ${colorSpace==='display-p3'?'P3':'sRGB'}`;renderer=await createRenderer(device,format,context,legendContext,swatchContext);imagery=new Imagery(device,requestRender,message=>setCanvasText($('imagery-status'),message));for(const id of ['satellite','fullscreen-satellite'])$(id).disabled=false;
  const meta=await Promise.allSettled(['https://tiles.mapterhorn.com/tilejson.json','https://tiles.openwaters.io/seascape/raster.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json();}));metadata={land:meta[0].status==='fulfilled'?meta[0].value:fallback.land,sea:meta[1].status==='fulfilled'?meta[1].value:fallback.sea};if(metadata.sea.schema!==1)throw Error('Unsupported Seascape schema. Expected version 1.');earthMetadata=metadata;if(location.hash&&initialBody==='earth'){const rect=canvas.getBoundingClientRect();sphereZoom=sphereZoomFromMapZoom(view.zoom,view.y,rect.width,rect.height);}$('celestial-body').disabled=false;if(initialBody!=='earth'){$('celestial-body').value=initialBody;switchBody(initialBody,true);}controls();highlightLabel();downloadButtons.forEach(button=>{button.disabled=false;});new ResizeObserver(updateView).observe(canvas);window.addEventListener('resize',updateView);let currentDpr=window.devicePixelRatio;setInterval(()=>{if(currentDpr!==window.devicePixelRatio){currentDpr=window.devicePixelRatio;updateView();}},500);updateView();}
 function setControlExpansion(id,open){const element=$(id);if(element.dataset.open===String(open))return;element.dataset.open=String(open);element.inert=!open;element.setAttribute('aria-hidden',String(!open));}
 function syncColorRangeMode(){const automatic=!locks.min&&!locks.max;$('auto-color-range').checked=automatic;setControlExpansion('elevation-range-controls',!automatic);}
@@ -552,7 +559,7 @@ async function downloadImage(){
 }
 for(const button of downloadButtons)button.addEventListener('click',downloadImage);
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;syncGoogleMapsVisibility();updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;$('fullscreen-satellite').hidden=!active;syncGoogleMapsVisibility();updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}
@@ -567,6 +574,15 @@ async function exitFullscreen(){
  canvas.focus({preventScroll:true});
 }
 $('fullscreen-exit').addEventListener('click',exitFullscreen);
+function syncImageryMode(){
+ document.body.classList.toggle('imagery-mode',imageryMode);
+ setControlExpansion('terrain-section',!imageryMode);
+ for(const id of ['satellite','fullscreen-satellite']){const button=$(id);button.setAttribute('aria-pressed',imageryMode);button.title=imageryMode?'Show elevation terrain':'Show satellite imagery';button.setAttribute('aria-label',button.title);}
+ const credit=$('imagery-credit');credit.replaceChildren();
+ if(imageryMode){const source=IMAGERY_SOURCES[body],link=document.createElement('a');link.href=source.link;link.target='_blank';link.rel='noreferrer';link.textContent=source.credit;credit.append(link,document.createTextNode(' · Imagery dates vary'));}
+}
+for(const id of ['satellite','fullscreen-satellite'])$(id).addEventListener('click',()=>{imageryMode=!imageryMode;imagery?.enable(imageryMode);syncImageryMode();requestRender();});
+
 window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!textFieldHasKeyboardFocus(event))exitFullscreen();});
 function isSphere(){return $('projection').checked;}
 $('projection').addEventListener('change',()=>{
@@ -606,7 +622,7 @@ function switchBody(next,initial=false){
  else{$('projection').checked=true;const rect=canvas.getBoundingClientRect();sphereZoom=initial?sphereZoomFromMapZoom(view.zoom,view.y,rect.width,rect.height):0;if(!initial)Object.assign(view,{x:.5,y:.5,zoom:2});}
  setControlExpansion('water-control',isEarth());
  $('water').disabled=!isEarth();
- mapOverlay.setBody(body);
+ mapOverlay.setBody(body);syncImageryMode();
  mapOverlay.enable($('map-mode').checked);
  syncGoogleMapsVisibility();
  document.querySelector('label[for="location-query"]').textContent='Location';$('location-query').title=isEarth()?'Latitude, longitude or an address':'Latitude, longitude or a named geographic feature';$('location-query').value='';$('location-query').placeholder='Location';$('location-query').dispatchEvent(new Event('input'));
@@ -858,6 +874,9 @@ window.addEventListener('keydown',event=>{
   else $(event.shiftKey?'max-sea':'min-sea').click();
   return;
  }
+ if(event.key.toLowerCase()==='t'){
+  event.preventDefault();if(!event.repeat)$('satellite').click();return;
+ }
  if(event.key.toLowerCase()==='f'){
   event.preventDefault();
   if(!event.repeat){
@@ -912,7 +931,7 @@ init().catch(e=>{$('message').textContent=e.message;console.error(e);});
 document.addEventListener('visibilitychange',()=>{
  tileWorker.postMessage({pauseBackground:document.hidden});
  if(document.hidden){clearTimeout(refinementTimer);for(const entry of cache.values())entry.refineAbort?.abort();}
- else {mapOverlay.dirty=true;mapOverlay.pump();pump();requestRender();}
+ else {imagery?.pump();mapOverlay.dirty=true;mapOverlay.pump();pump();requestRender();}
 });
 
 // Administrative isolation is independent of the Map Labels layer.

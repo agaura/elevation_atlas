@@ -353,3 +353,33 @@ aside .sidebar-section[open]>summary{color:var(--muted)}
 .canvas-probe #pinned-copy:hover,.canvas-probe #pinned-copy[data-copied]{color:var(--accent)}
 #pinned-copy .copied-symbol,#pinned-copy[data-copied] .copy-symbol{display:none}
 #pinned-copy[data-copied] .copied-symbol{display:block}
+
+.satellite-button .terrain-symbol,.satellite-button[aria-pressed=true] .satellite-symbol{display:none}
+.satellite-button[aria-pressed=true] .terrain-symbol{display:block}
+.satellite-button[hidden]{display:none}
+#fullscreen-satellite{position:absolute;right:132px;top:12px;z-index:3;width:32px;height:32px;background:#101318d9;color:var(--fg);border:0}
+.satellite-button svg{stroke-width:1.5}
+#fullscreen-satellite svg{width:20px;height:20px}
+#fullscreen-satellite:hover{background:#1c2632ed;color:var(--accent)}
+.canvas-status :is(#imagery-status,#imagery-credit){padding:7px 9px;background:#101318d9;color:var(--fg);font:9px/1.4 monospace}
+#imagery-credit a{color:inherit}
+body.imagery-mode .canvas-legend{visibility:hidden;pointer-events:none}
+body.imagery-mode .canvas-legend #legend{pointer-events:none}
+@media(max-width:700px){header h1{font-size:24px}.header-right .map-actions{gap:6px}}
+
+/* One layout keeps fullscreen action spacing consistent for every body. */
+.fullscreen-actions{position:absolute;top:12px;right:12px;z-index:3;display:flex;align-items:center;gap:8px;pointer-events:none}
+.fullscreen-actions>:is(#fullscreen-satellite,#fullscreen-google-maps,#fullscreen-download,#fullscreen-exit){position:static;width:32px;height:32px;margin:0;padding:6px;border:0;pointer-events:auto;background:#101318d9;color:var(--fg)}
+.fullscreen-actions>.icon-button[hidden]{display:none}
+.fullscreen-actions>.icon-button:hover{background:#1c2632ed;color:var(--accent)}
+
+/* Collapse the Earth-only action without leaving an empty flex gap. */
+.header-right .map-actions{--action-gap:14px;gap:var(--action-gap)}
+.fullscreen-actions{--action-gap:8px;gap:var(--action-gap)}
+:is(#google-maps,#fullscreen-google-maps){overflow:hidden;transition:width 220ms ease,padding 220ms ease,margin 220ms ease,opacity 180ms ease,visibility 0s}
+.map-actions>#google-maps.maps-unavailable,.fullscreen-actions>#fullscreen-google-maps.maps-unavailable{width:0;padding-inline:0;border-inline-width:0;margin-left:calc(-1 * var(--action-gap));opacity:0;visibility:hidden;pointer-events:none;transition:width 220ms ease,padding 220ms ease,margin 220ms ease,opacity 180ms ease,visibility 0s 220ms}
+@media(max-width:700px){.header-right .map-actions{--action-gap:6px}}
+@media(prefers-reduced-motion:reduce){:is(#google-maps,#fullscreen-google-maps){transition:none!important}}
+
+/* Enlarge the satellite artwork without changing its hit area. */
+.map-actions>.satellite-button .satellite-symbol,#fullscreen-satellite .satellite-symbol{width:24px;height:24px;flex-basis:24px;stroke-width:1.25}

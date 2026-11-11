@@ -19,7 +19,7 @@
                 <h1>Elevation <span>Atlas</span></h1>
             </div>
             <div class="header-right">
-                <div class="map-actions"><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
+                <div class="map-actions"><button id="satellite" class="icon-button satellite-button" type="button" aria-label="Show satellite imagery" aria-pressed="false" title="Show satellite imagery" disabled><svg class="satellite-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m6.8 2.2 3.4 3.4-2.1 2.1-3.4-3.4Zm7.6 7.6 3.4 3.4-2.1 2.1-3.4-3.4ZM10.9 5.5a1.3 1.3 0 0 1 1.8 0l1.8 1.8a1.3 1.3 0 0 1 0 1.8l-3.6 3.6a1.3 1.3 0 0 1-1.8 0l-1.8-1.8a1.3 1.3 0 0 1 0-1.8ZM8.2 11.8l-2.1 2.1M4.1 11.9a2.83 2.83 0 0 1 4 4Zm2 2-1 1M1.7 14.3a4 4 0 0 0 4 4"/></svg><svg class="terrain-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m2 16 6-12 4 8 2-4 4 8H2Zm3-6 3 2 2-2"/></svg></button><a id="google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a><button id="download" class="icon-button" type="button" aria-label="Download HDR AVIF" title="Download full-resolution HDR AVIF" disabled>
                         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>
                     </button><button id="fullscreen"
                         class="icon-button" type="button" aria-label="Enter fullscreen" aria-pressed="false"
@@ -41,7 +41,7 @@
             </form>
             </div>
             <section class="color-controls">
-                <details class="sidebar-section" open>
+                <div id="terrain-section" class="control-expander" data-open="true" aria-hidden="false"><div class="control-expander-inner"><details class="sidebar-section" open>
                     <summary>Terrain</summary>
                     <div class="sidebar-section-content">
                 <div id="water-control" class="control-expander" data-open="true" aria-hidden="false"><div class="control-expander-inner">
@@ -165,7 +165,7 @@
                 <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
                 </div>
-                </details>
+                </details></div></div>
                 <details class="sidebar-section" open>
                     <summary>Map View</summary>
                     <div class="sidebar-section-content">
@@ -202,7 +202,7 @@
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
                     <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
-                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>C</kbd> Contours</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>C</kbd> Contours</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span> · <span class="key-command"><kbd>T</kbd> Satellite / Terrain</span><br>
                         <span class="key-command"><kbd>G</kbd> Coordinate Grid</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
@@ -232,6 +232,8 @@
                     <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
                     <circle cx="12" cy="11" r="3.5" />
                 </svg>
+                <div class="fullscreen-actions" role="group" aria-label="Map actions">
+                <button id="fullscreen-satellite" class="icon-button satellite-button" type="button" aria-label="Show satellite imagery" aria-pressed="false" title="Show satellite imagery" hidden disabled><svg class="satellite-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m6.8 2.2 3.4 3.4-2.1 2.1-3.4-3.4Zm7.6 7.6 3.4 3.4-2.1 2.1-3.4-3.4ZM10.9 5.5a1.3 1.3 0 0 1 1.8 0l1.8 1.8a1.3 1.3 0 0 1 0 1.8l-3.6 3.6a1.3 1.3 0 0 1-1.8 0l-1.8-1.8a1.3 1.3 0 0 1 0-1.8ZM8.2 11.8l-2.1 2.1M4.1 11.9a2.83 2.83 0 0 1 4 4Zm2 2-1 1M1.7 14.3a4 4 0 0 0 4 4"/></svg><svg class="terrain-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m2 16 6-12 4 8 2-4 4 8H2Zm3-6 3 2 2-2"/></svg></button>
                 <a id="fullscreen-google-maps" class="icon-button google-maps-button" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps" title="Open in Google Maps" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5" /></svg></a>
                 <button id="fullscreen-download" class="icon-button" type="button" aria-label="Download HDR AVIF"
                     title="Download full-resolution HDR AVIF" hidden disabled>
@@ -245,9 +247,10 @@
                         <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4"/>
                     </svg>
                 </button>
+                </div>
                 <div id="map-label-text" class="map-label-text"></div>
                 <div class="canvas-readouts">
-                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div><div id="region-status" role="status"></div></div>
+                    <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div><div id="region-status" role="status"></div><div id="imagery-status" role="status"></div><div id="imagery-credit"></div></div>
                     <div class="canvas-right-readouts">
                     <div id="distance-scale" class="distance-scale" role="img" aria-label="Distance scale at the center of the view" title="Distance at the center of the view">
                         <span id="distance-scale-label"></span>
