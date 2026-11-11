@@ -313,3 +313,16 @@ aside .sea-button[aria-pressed="true"]{color:var(--accent);background:color-mix(
 .location-tools .search-row{min-height:26px;height:26px}
 .location-tools #location-query{padding:4px 0}
 .location-tools .search-row .icon-button{height:24px}
+
+/* Vertical elevation legend, shared by normal and fullscreen presentation. */
+.canvas-legend{position:absolute;top:12px;left:12px;width:112px;height:clamp(150px,32vh,260px);max-height:calc(100% - 24px);z-index:2;pointer-events:none}
+.canvas-legend .legend-wrap{position:absolute;inset:0 auto 0 0;width:24px;padding:3px;background:#101318d9;margin:0}
+.canvas-legend #legend{width:18px;height:100%;margin:0;cursor:pointer;pointer-events:auto}
+.canvas-legend .ends{position:absolute;inset:3px 8px 3px 30px;display:block;min-height:0;margin:0;font:9px/1.4 monospace;color:var(--fg)}
+.canvas-legend #legend-max{position:absolute;top:0;left:0}
+.canvas-legend #legend-min{position:absolute;bottom:0;left:0}
+.canvas-legend .ends>span,.canvas-legend #legend-hover-value{white-space:nowrap;background:#101318d9;padding:2px 4px}
+.canvas-legend .legend-hover{position:absolute;inset:0; width:auto;height:100%;font:inherit;color:var(--accent)}
+.canvas-legend .legend-hover[hidden]{display:none}
+.canvas-legend .legend-hover span{position:absolute;left:0;top:clamp(0px,calc((100 - var(--position))*1% - 8px),calc(100% - 17px));width:max-content;text-align:left}
+.canvas-legend #highlight-value{font:inherit}

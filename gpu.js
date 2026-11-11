@@ -70,8 +70,8 @@ fn regionCoverage(position:vec2f)->f32{
 }
 
 @fragment fn color(o:Out)->@location(0) vec4f{
-let coord=vec2i(o.position.xy);let legend=p.screen.z>.5;var t=o.uv.x;var elevation=mix(p.range.x,p.range.y,t);var validTerrain=true;var water=false;var terrainEdge = -1.;
-if(p.screen.z>1.5){elevation=p.highlight.x;t=clamp((elevation-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}
+let coord=vec2i(o.position.xy);let legend=p.screen.z>.5;var t=select(o.uv.x,1.-o.uv.y,p.screen.z>2.5);var elevation=mix(p.range.x,p.range.y,t);var validTerrain=true;var water=false;var terrainEdge = -1.;
+if(p.screen.z>1.5&&p.screen.z<2.5){elevation=p.highlight.x;t=clamp((elevation-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}
 if(!legend){let sample=textureLoad(terrain,coord,0);let value=sample.r;water=sample.g< -1.;terrainEdge=select(sample.g,-2.-sample.g,sample.g<= -2.);validTerrain=value>=-40000&&value<=40000;if(validTerrain){elevation=value;t=clamp((value-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}}
 let colorT=select(t,1.-t,p.highlight.z>.5);var c=vec3f(colorT);let emphasis=p.effects.y>0.;
 let weight=pow(max(0.,1.-abs(elevation-p.highlight.x)/max(p.highlight.y,.0000001)),2.)*clamp(p.effects.y,0.,1.);
@@ -130,7 +130,7 @@ export async function createRenderer(device,format,context,legendContext,swatchC
  return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return regionBytes+visibilityWidth*visibilityHeight+w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
- },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,min,max,displayedElevationSpan=max-min,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
+ },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,legendVertical=false,min,max,displayedElevationSpan=max-min,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
  visibleElevationSpan=Math.max(0,displayedElevationSpan);
  if(edges>0.&&!edgesAvailable)heightDirty=true;
  edgesAvailable=edges>0.;
@@ -183,7 +183,7 @@ export async function createRenderer(device,format,context,legendContext,swatchC
  if(heightDirty&&sphere){spherePass.draw(encoder,screenView,{camera:sphere,tiles,cache,noOcean:false,edges:edges>0.});heightDirty=false;}
  if(heightDirty){const pass=encoder.beginRenderPass({colorAttachments:[{view:screenView,clearValue:{r:-1e30,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(heightPipeline);for(const t of tiles){const e=cache.get(t.sourceKey??t.key);if(e?.state==='ready'){pass.setBindGroup(0,bind(e.texture,index++,[t.left*dpr,t.top*dpr,t.size*dpr,t.size*dpr,...tail.slice(0,12),...(t.uv??[0,0,1]),t.sourceKey?1:0]));pass.draw(6);}}pass.end();heightDirty=false;}
  // Fixed slots for presentation avoid rebuilding bind groups as tile count changes.
- for(const [ctx,isLegend,slot] of [[context,false,0],[legendContext,true,1]]){const pass=encoder.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});pass.setPipeline(colorPipeline);pass.setBindGroup(0,bind(screen,tiles.length+slot,[0,0,0,0,min,max,palette,hdr,isLegend?legend.width:w,isLegend?legend.height:h,isLegend?1:0,p3,selected,Number(emphasis)||0,edges,1-waterOpacity,selectedElevation,highlightWidth,reversed?1:0,!isLegend&&mapOverlay?1:0]));pass.draw(3);pass.end();}
+ for(const [ctx,isLegend,slot] of [[context,false,0],[legendContext,true,1]]){const pass=encoder.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});pass.setPipeline(colorPipeline);pass.setBindGroup(0,bind(screen,tiles.length+slot,[0,0,0,0,min,max,palette,hdr,isLegend?legend.width:w,isLegend?legend.height:h,isLegend?(legendVertical?3:1):0,p3,selected,Number(emphasis)||0,edges,1-waterOpacity,selectedElevation,highlightWidth,reversed?1:0,!isLegend&&mapOverlay?1:0]));pass.draw(3);pass.end();}
  // A solid center-color preview uses the same HDR shader as the legend.
  if(swatchContext&&Number(emphasis)>0){
   const swatch=swatchContext.canvas;

@@ -300,7 +300,7 @@ function render(time=performance.now()){
  if(entries.length>budget)requestRender();
  if(!globeCamera)renderTiles=flatRenderTiles(true);report();
  trimTerrainCache();
- const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,min,max,displayedElevationSpan:viewBounds.max-viewBounds.min,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
+ const started=renderer.render({tiles:renderTiles,cache,dpr,canvas,legend,legendVertical:true,min,max,displayedElevationSpan:viewBounds.max-viewBounds.min,palette:Number($('palette').value),reversed:$('palette-flip').getAttribute('aria-pressed')==='true',hdr:HIGHLIGHT_HDR_TARGET,p3:colorSpace==='display-p3'?1:0,selectedElevation:highlightTweens.elevation.current,highlightWidth:highlightTweens.width.current,emphasis:highlightTransition.valueAt(time),edges:edgeTransition.valueAt(time),noOcean:isEarth()&&!$('water').checked,waterOpacity:isEarth()?waterTransition.valueAt(time):1,sphere:globeCamera,mapOverlay:mapMask,regionMask:displayedRegion,pinnedRegionRevision:regionMask.pinned?.revision,regionFilter:filterRegion,view,reduce:pendingExposure,onExposure(lo,hi){
   if(revision===exposureConfig&&lo<=hi){
    const now=performance.now();advanceExposure(now);
    viewBounds={min:lo,max:Math.max(lo+1/256,hi)};retargetSliderDomain(now);
@@ -411,14 +411,14 @@ function highlightLabel(){
  const centerBounds=active?$('highlight-value').getBoundingClientRect():null;
  for(const id of ['legend-min','legend-max']){
   const endpoint=$(id),bounds=endpoint.getBoundingClientRect();
-  endpoint.style.visibility=centerBounds&&bounds.right+6>centerBounds.left&&bounds.left-6<centerBounds.right?'hidden':'';
+  endpoint.style.visibility=centerBounds&&bounds.bottom+6>centerBounds.top&&bounds.top-6<centerBounds.bottom?'hidden':'';
  }
 
  setControlExpansion('highlight-panel',active);
  $('highlight-controls').disabled=!active;const elevationControl=$('highlight-elevation');elevationControl.value=displayedElevation;
  const widthControl=$('highlight-width');widthControl.min=Math.min((max-min)*.000001,halfWidth,displayedWidth);widthControl.max=Math.max(max-min,halfWidth,displayedWidth);widthControl.value=displayedWidth;syncNumbers();
 }
-function previewHighlight(event){if(!hovering&&!$('highlight').checked){highlightPreviewOnly=true;$('highlight').checked=true;}const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;snapHighlightState();highlightLabel();requestRender();}
+function previewHighlight(event){if(!hovering&&!$('highlight').checked){highlightPreviewOnly=true;$('highlight').checked=true;}const rect=legend.getBoundingClientRect(),position=Math.max(0,Math.min(1,1-(event.clientY-rect.top)/rect.height));hoverPosition=position;previewElevation=elevationAt(position,min,max);hovering=true;snapHighlightState();highlightLabel();requestRender();}
 // Keep iOS long presses on the color bar inside our pointer interaction.
 for(const type of ['contextmenu','selectstart','dragstart'])legend.addEventListener(type,event=>event.preventDefault());
 legend.addEventListener('touchstart',event=>event.preventDefault(),{passive:false});

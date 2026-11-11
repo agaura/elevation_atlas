@@ -105,12 +105,6 @@
                             <path
                                 d="M20 10a8 8 0 0 0-13.66-3.66L3 9M3 4v5h5M4 14a8 8 0 0 0 13.66 3.66L21 15M21 20v-5h-5" />
                         </svg></button></div>
-                <div class="legend-wrap"><canvas id="legend" draggable="false" tabindex="0" role="slider" aria-label="Elevation highlight"
-                        aria-valuemin="-11000" aria-valuemax="8850" aria-valuenow="-1075"></canvas>
-                </div>
-                <div class="ends"><span id="legend-min"></span><span id="legend-max"></span>
-                    <div id="legend-hover" class="legend-hover" hidden><span id="legend-hover-value"><output id="highlight-value"></output></span></div>
-                </div>
                 <div class="highlight-heading"><label class="toggle">Highlight <input id="highlight"
                             type="checkbox" role="switch"></label></div>
                 <div id="highlight-panel" class="control-expander" data-open="false" aria-hidden="true" inert><div class="control-expander-inner"><fieldset id="highlight-controls" disabled>
@@ -211,6 +205,14 @@
             <div class="stage"><canvas id="map"
                     aria-label="Interactive elevation map. Drag to pan or rotate; scroll, pinch, or double-tap to zoom. Right-click to pin a location, or press and hold on touchscreens."
                     tabindex="0"></canvas>
+                <div class="canvas-legend">
+                <div class="legend-wrap"><canvas id="legend" draggable="false" tabindex="0" role="slider" aria-orientation="vertical" aria-label="Elevation highlight"
+                        aria-valuemin="-11000" aria-valuemax="8850" aria-valuenow="-1075"></canvas>
+                </div>
+                <div class="ends"><span id="legend-min"></span><span id="legend-max"></span>
+                    <div id="legend-hover" class="legend-hover" hidden><span id="legend-hover-value"><output id="highlight-value"></output></span></div>
+                </div>
+                </div>
                 <svg id="location-pin" viewBox="0 0 24 32" aria-label="Pinned Location" role="img" hidden>
                     <path d="M12 30S2 17 2 11a10 10 0 0 1 20 0c0 6-10 19-10 19Z" />
                     <circle cx="12" cy="11" r="3.5" />
