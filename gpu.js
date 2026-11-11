@@ -73,6 +73,8 @@ fn regionCoverage(position:vec2f)->f32{
 let coord=vec2i(o.position.xy);let legend=p.screen.z>.5;var t=select(o.uv.x,1.-o.uv.y,p.screen.z>2.5);var elevation=mix(p.range.x,p.range.y,t);var validTerrain=true;var water=false;var terrainEdge = -1.;
 if(p.screen.z>1.5&&p.screen.z<2.5){elevation=p.highlight.x;t=clamp((elevation-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}
 if(!legend){let sample=textureLoad(terrain,coord,0);let value=sample.r;water=sample.g< -1.;terrainEdge=select(sample.g,-2.-sample.g,sample.g<= -2.);validTerrain=value>=-40000&&value<=40000;if(validTerrain){elevation=value;t=clamp((value-p.range.x)/max(p.range.y-p.range.x,.00001),0.,1.);}}
+// Derivatives stay outside varying branches for valid WebGPU uniformity.
+let contourFootprint=max(fwidth(elevation),.0001);
 let colorT=select(t,1.-t,p.highlight.z>.5);var c=vec3f(colorT);let emphasis=p.effects.y>0.;
 let weight=pow(max(0.,1.-abs(elevation-p.highlight.x)/max(p.highlight.y,.0000001)),2.)*clamp(p.effects.y,0.,1.);
 if(p.range.z<.5&&emphasis){let base=linearP3ToOKLab(decodeSRGB(c));let peak=linearP3ToOKLab(vec3f(p.range.w));c=oklabToP3(mix(base,peak,weight));}
@@ -80,6 +82,18 @@ if(p.range.z>.5){var lab:vec3f;switch u32(p.range.z){
 ${COLOR_MAPS.filter(map=>map.shader).map(map=>`case ${map.id}u:{lab=${map.shader}(colorT,p.effects.x,weight,p.range.w,emphasis);}`).join('\n')}
 default:{lab=colorMapThermal(colorT,p.effects.x,weight,p.range.w,emphasis);}}c=max(oklabToP3(lab),vec3f(0));}
 if(!legend&&validTerrain&&p.effects.z>0.&&terrainEdge>=0.){let edge=terrainEdge/max(max(p.range.y-p.range.x,p.edgeRange.x),.00001);let linearColor=decodeSRGB(c);var scale=mix(1.,clamp(mix(.5,5.5,pow(edge,.75)),.5,4.),p.effects.z);scale=min(scale,8./max(max(linearColor.x,max(linearColor.y,linearColor.z)),.000001));c=encodeSRGB(linearColor*scale);}
+if(validTerrain&&p.edgeRange.z>.5&&elevation>=p.range.x&&elevation<=p.range.y&&(p.screen.z<1.5||p.screen.z>2.5)){
+ let interval=p.edgeRange.y;
+ let level=round(elevation/interval)*interval;
+ let distance=abs(elevation-level)/contourFootprint;
+ // Suppress sub-pixel contour frequencies instead of producing moire.
+ let resolved=1.-smoothstep(interval*.15,interval*.5,contourFootprint);
+ let coverage=(1.-smoothstep(.35,1.1,distance))*resolved*smoothstep(.0001,.001,contourFootprint)*select(0.,1.,level>=p.range.x&&level<=p.range.y);
+ let linear=decodeSRGB(c);
+ let luminance=dot(linear,vec3f(.2289746,.6917385,.0792869));
+ let gain=mix(3.,2.,clamp(luminance,0.,1.));
+ c=encodeSRGB(linear*mix(1.,gain,coverage));
+}
 if(!legend&&!validTerrain){c=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);}
 if(!legend&&water&&validTerrain){let background=select(vec3f(.012,.014,.016),vec3f(.014),p.range.z<.5);c=encodeSRGB(mix(decodeSRGB(background),decodeSRGB(c),1.-p.effects.w));}
 if(!legend&&p.highlight.w>.5){
@@ -124,14 +138,14 @@ export async function createRenderer(device,format,context,legendContext,swatchC
  let screen,screenView,w=0,h=0,uniforms=[],reductionBusy=false,heightDirty=true,edgesAvailable=false,captureRequest=null;
  function resize(width,height){if(width===w&&height===h)return;screen?.destroy();w=width;h=height;screen=device.createTexture({size:[w,h],format:'rg32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});screenView=screen.createView();heightDirty=true;}
  const regionTextures=new Map();
- let visibleElevationSpan=0;
- function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:192,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture||u.region!==regionTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.region=regionTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()},{binding:4,resource:regionTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array([...data,...regionUniforms,visibleElevationSpan,0,0,0]));return u.group;}
+ let visibleElevationSpan=0,contourSpacing=0,contourEnabled=0;
+ function bind(texture,index,data){let u=uniforms[index];if(!u){u={buffer:device.createBuffer({size:192,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};uniforms[index]=u;}if(u.texture!==texture||u.mask!==maskTexture||u.labels!==labelTexture||u.region!==regionTexture){u.texture=texture;u.mask=maskTexture;u.labels=labelTexture;u.region=regionTexture;u.group=device.createBindGroup({layout,entries:[{binding:0,resource:texture.createView()},{binding:1,resource:{buffer:u.buffer}},{binding:2,resource:maskTexture.createView()},{binding:3,resource:labelTexture.createView()},{binding:4,resource:regionTexture.createView()}]});}device.queue.writeBuffer(u.buffer,0,new Float32Array([...data,...regionUniforms,visibleElevationSpan,contourSpacing,contourEnabled,0]));return u.group;}
  device.lost.then(info=>{captureRequest?.reject(new Error('GPU device lost during image capture: '+info.message));captureRequest=null;});
  return {clearTerrain(){spherePass.clear();mapPass.clear();heightDirty=true;},memoryBytes(cache){return regionBytes+visibilityWidth*visibilityHeight+w*h*24+maskWidth*maskHeight*4+labelWidth*labelHeight*4+spherePass.memoryBytes(cache);},capture(){
   if(captureRequest)return Promise.reject(new Error('An image capture is already queued.'));
   return new Promise((resolve,reject)=>{captureRequest={resolve,reject};});
- },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,legendVertical=false,min,max,displayedElevationSpan=max-min,palette,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
- visibleElevationSpan=Math.max(0,displayedElevationSpan);
+ },invalidate(){heightDirty=true;},render({tiles,cache,dpr,canvas,legend,legendVertical=false,min,max,displayedElevationSpan=max-min,palette,contours=false,contourInterval=100,reversed=false,hdr,p3,selected=.5,selectedElevation=min+selected*(max-min),highlightWidth=(max-min)/8,emphasis,edges,noOcean,waterOpacity=noOcean?0:1,sphere=null,mapOverlay=null,regionMask=null,pinnedRegionRevision=null,regionFilter=!!regionMask,view=null,reduce,onExposure}){
+ visibleElevationSpan=Math.max(0,displayedElevationSpan);contourSpacing=Math.max(.001,contourInterval);contourEnabled=Number(contours);
  if(edges>0.&&!edgesAvailable)heightDirty=true;
  edgesAvailable=edges>0.;
  resize(canvas.width,canvas.height);

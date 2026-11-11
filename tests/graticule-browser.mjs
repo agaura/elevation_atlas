@@ -17,7 +17,10 @@ try{
 
 
  assert.equal(await page.locator('#map-mode').isChecked(),false);
- await page.keyboard.press('c');assert.equal(await page.locator('#graticule').isChecked(),true);await page.waitForTimeout(500);
+ await page.keyboard.press('c');assert.equal(await page.locator('#contours').isChecked(),true);await page.waitForTimeout(200);
+ assert.equal(await page.locator('#contour-legend-labels').isVisible(),true);assert.ok(await page.locator('.contour-level').count()>0);
+ await page.locator('#contours').uncheck();
+ await page.keyboard.press('g');assert.equal(await page.locator('#graticule').isChecked(),true);await page.waitForTimeout(500);
  assert.ok(!(await page.locator('#message').textContent()).includes('Validation'));
  await page.locator('#projection').uncheck();await page.waitForTimeout(250);
  await page.locator('#palette').selectOption('0');await page.waitForTimeout(250);
@@ -25,7 +28,7 @@ try{
  await page.locator('#map-mode').check();await page.waitForTimeout(250);
  await page.locator('#graticule').uncheck();await page.waitForTimeout(250);
  assert.equal(await page.locator('#map-mode').isChecked(),true);
- await page.locator('#location-query').focus();await page.keyboard.press('c');assert.equal(await page.locator('#graticule').isChecked(),false);
+ await page.locator('#location-query').focus();await page.keyboard.press('g');assert.equal(await page.locator('#graticule').isChecked(),false);
  for(const body of ['mars','moon','earth']){await page.selectOption('#celestial-body',body);assert.equal(await page.locator('#location-query').getAttribute('placeholder'),'Location');}
  assert.deepEqual(errors,[]);console.log('PASS graticule toggle, labels-off operation, flat/globe, grayscale and coexistence with map labels');
 }finally{await browser?.close();server.kill();}

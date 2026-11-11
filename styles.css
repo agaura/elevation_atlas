@@ -335,3 +335,21 @@ aside .sidebar-section[open]>summary{color:var(--muted)}
 .location-tools + .color-controls{margin-top:4px}
 
 @media(max-width:700px){aside{align-content:start;grid-auto-rows:max-content}}
+
+#contour-legend-labels{position:absolute;inset:0;pointer-events:none}
+#contour-legend-labels[hidden]{display:none}
+.canvas-legend .contour-level{position:absolute;left:0;transform:translateY(-50%);white-space:nowrap;padding:2px 4px;background:#101318d9;font:inherit;color:var(--fg)}
+.canvas-legend .contour-level::before{content:"";position:absolute;right:calc(100% + 1px);top:50%;width:5px;border-top:1px solid currentColor;opacity:.65}
+
+/* Text overlays use native selection; the terrain and color strip keep gestures. */
+.stage :is(.canvas-probe,.canvas-status>div,.distance-scale,#legend-min,#legend-max,#legend-hover-value,.contour-level,#map-label-text>span){pointer-events:auto;cursor:text;user-select:text;-webkit-user-select:text;-webkit-touch-callout:default;touch-action:auto}
+.map-label-text{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden}
+.map-label-text>span{position:absolute;white-space:nowrap;color:transparent;line-height:1.2}
+.map-label-text>span::selection{color:var(--fg);background:#244b70cc}
+
+.pinned-coordinate-value{position:relative;padding-right:18px}
+.canvas-probe #pinned-copy{position:absolute;right:0;top:50%;transform:translateY(-50%);width:14px;height:13px;padding:0;border:0;cursor:pointer;color:var(--muted);user-select:none;-webkit-user-select:none}
+.canvas-probe #pinned-copy svg{width:12px;height:12px}
+.canvas-probe #pinned-copy:hover,.canvas-probe #pinned-copy[data-copied]{color:var(--accent)}
+#pinned-copy .copied-symbol,#pinned-copy[data-copied] .copy-symbol{display:none}
+#pinned-copy[data-copied] .copied-symbol{display:block}

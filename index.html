@@ -170,6 +170,7 @@
                     <summary>Map View</summary>
                     <div class="sidebar-section-content">
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
+                <label class="toggle">Contours <input id="contours" type="checkbox" role="switch"></label>
                 <label class="toggle">Coordinate Grid <input id="graticule" type="checkbox" role="switch"></label>
                 <label class="toggle">Sphere <input id="projection" type="checkbox" role="switch" aria-label="Sphere View" checked></label>
                 </div>
@@ -201,8 +202,8 @@
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
                     <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
-                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>C</kbd> Coordinate Grid</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
-                        <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>C</kbd> Contours</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>G</kbd> Coordinate Grid</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>
                         <span class="key-command">Hold <kbd>⌘ / Ctrl</kbd> to isolate region</span><br><span class="key-command">Hold <kbd>Shift</kbd> to preview highlight</span> · <span class="key-command"><kbd>Shift-click</kbd> to keep</span></p>
@@ -223,6 +224,7 @@
                         aria-valuemin="-11000" aria-valuemax="8850" aria-valuenow="-1075"></canvas>
                 </div>
                 <div class="ends"><span id="legend-min"></span><span id="legend-max"></span>
+                    <div id="contour-legend-labels" hidden></div>
                     <div id="legend-hover" class="legend-hover" hidden><span id="legend-hover-value"><output id="highlight-value"></output></span></div>
                 </div>
                 </div>
@@ -243,6 +245,7 @@
                         <path d="M3 7h4V3m6 0v4h4M7 17v-4H3m10 4v-4h4"/>
                     </svg>
                 </button>
+                <div id="map-label-text" class="map-label-text"></div>
                 <div class="canvas-readouts">
                     <div class="canvas-status"><div id="message" role="status">Initializing WebGPU…</div><div id="map-status" role="status"></div><div id="export-status" role="status"></div><div id="region-status" role="status"></div></div>
                     <div class="canvas-right-readouts">
@@ -263,7 +266,7 @@
                             <div id="pinned-readout" class="probe-readout" hidden>
                                 <div class="probe-heading"><span>Pinned Location</span><button id="probe-unpin" type="button" hidden>Unpin</button></div>
                                 <dl class="probe-values">
-                                    <dt>Coordinates</dt><dd id="pinned-position">—</dd>
+                                    <dt>Coordinates</dt><dd class="pinned-coordinate-value"><span id="pinned-position">—</span><button id="pinned-copy" class="icon-button" type="button" aria-label="Copy pinned coordinates" title="Copy coordinates"><svg class="copy-symbol" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="10" rx="1"/><path d="M12 7V3H3v10h4"/></svg><svg class="copied-symbol" viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg></button><span id="pinned-copy-status" class="sr" role="status"></span></dd>
                                     <dt>Elevation</dt><dd id="pinned-elevation">—</dd>
                                 </dl>
                             </div>
