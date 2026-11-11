@@ -1,3 +1,4 @@
+import {Graticule} from './graticule.js';
 import {RegionTransition} from './region-transition.js';
 import {RegionMask} from './region-mask.js';
 import {paletteAccent} from './palette-accent.js';
@@ -94,6 +95,7 @@ function advanceHighlightState(time){
 
 let highlightElevationLocked=true,highlightPosition=.5,pinnedElevation=null,previewElevation=null,hoverPosition=.5,highlightFraction=1/8,lockedHighlightWidth=null,hovering=false,highlightPreviewOnly=false,exposureDirty=true,exposureConfig=0,lastViewMotion=-Infinity,viewDirty=false;
 const fallback={land:{tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18},sea:{tiles:['https://tiles.openwaters.io/seascape/{z}/{x}/{y}.webp'],tileSize:512,maxzoom:18,schema:1}};
+const graticule=new Graticule();
 const mapOverlay=new MapOverlay(requestRender,message=>{$('map-status').textContent=message;});
 const regionMask=new RegionMask(requestRender,message=>{$('region-status').textContent=message;});
 let regionModifierHeld=false,regionExposureKey='';const regionTransition=new RegionTransition();
@@ -281,7 +283,8 @@ function render(time=performance.now()){
  if(reducedMotion.matches)highlightTransition.snap(highlightTarget);
  const highlightEasing=advanceHighlightState(time);
  highlightLabel();
- const mapMask=$('map-mode').checked?mapOverlay.draw({view,width,height,dpr,camera:globeCamera}):null;
+ let mapMask=$('map-mode').checked?mapOverlay.draw({view,width,height,dpr,camera:globeCamera}):null;
+ if($('graticule').checked)mapMask=graticule.draw(mapMask,{view,width,height,dpr,camera:globeCamera});
  const regionZoom=globeCamera?Math.log2(2*Math.PI*globeCamera.radius/(dpr*256)):view.zoom;
  const activeRegion=regionMask.update(cursor.inside?cursorPoint():null,regionZoom,isEarth()&&regionModifierHeld&&!textFieldHasKeyboardFocus({target:document.activeElement}));
  const displayedRegion=regionTransition.update(activeRegion,time,reducedMotion.matches);
@@ -485,6 +488,7 @@ document.addEventListener('visibilitychange',()=>{
 function updatePaletteAccent(){document.documentElement.style.setProperty('--accent',paletteAccent(Number($('palette').value)));requestRender();}
 $('palette').addEventListener('change',updatePaletteAccent);
 updatePaletteAccent();
+$('graticule').addEventListener('change',requestRender);
 $('map-mode').addEventListener('change',()=>{mapOverlay.enable($('map-mode').checked);requestRender();});
 $('palette-flip').addEventListener('click',()=>{const button=$('palette-flip');button.setAttribute('aria-pressed',button.getAttribute('aria-pressed')!=='true');requestRender();});
 const sliderIds=['min','max','highlight-elevation','highlight-width'];
@@ -581,7 +585,7 @@ function switchBody(next,initial=false){
  mapOverlay.setBody(body);
  mapOverlay.enable($('map-mode').checked);
  syncGoogleMapsVisibility();
- document.querySelector('label[for="location-query"]').textContent=isEarth()?'Coordinates or Address':'Coordinates or Feature Name';$('location-query').title=isEarth()?'Latitude, longitude or an address':'Latitude, longitude or a named geographic feature';$('location-query').value='';$('location-query').placeholder=isEarth()?'Coordinates or Address':'Coordinates or Feature Name';$('location-query').dispatchEvent(new Event('input'));
+ document.querySelector('label[for="location-query"]').textContent='Location';$('location-query').title=isEarth()?'Latitude, longitude or an address':'Latitude, longitude or a named geographic feature';$('location-query').value='';$('location-query').placeholder='Location';$('location-query').dispatchEvent(new Event('input'));
  $('source-coverage-label').textContent=isEarth()?'GEBCO Coverage':'DEM Refinement';$('source-status-label').textContent=isEarth()?'GEBCO Status':'Terrain Status';
  $('planetary-attribution').hidden=isEarth();$('earth-attribution').hidden=!isEarth();$('body-source').hidden=isEarth();$('body-source').textContent=isEarth()?'':body==='mars'?'Mars · NASA Trek / MOLA reference · local USGS CTX refinement':'Moon · NASA Trek / 1,737.4 km reference sphere · local USGS Kaguya refinement';
  pinnedProbe=null;cursor.inside=false;seaLevelRestore.min=null;seaLevelRestore.max=null;
@@ -764,7 +768,7 @@ function restoreSidebarDefaults(){
  if(lockedHighlightWidth!==null)$('highlight-width-lock').click();
  highlightFraction=1/8;
  setHighlightElevationLocked(true);
- for(const id of ['water','auto-slider-range','pulse','highlight','edges']){
+ for(const id of ['water','auto-slider-range','pulse','highlight','edges','graticule']){
   const control=$(id);control.checked=control.defaultChecked;
   control.dispatchEvent(new Event('change',{bubbles:true}));
  }
@@ -813,7 +817,7 @@ window.addEventListener('keydown',event=>{
   }
   return;
  }
- const toggleId={e:'edges',h:'highlight',u:'water',m:'map-mode',o:'projection'}[event.key.toLowerCase()];
+ const toggleId={e:'edges',h:'highlight',u:'water',m:'map-mode',o:'projection',c:'graticule'}[event.key.toLowerCase()];
  if(toggleId){
   event.preventDefault();
   if(event.repeat)return;

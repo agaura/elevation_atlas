@@ -34,7 +34,7 @@
             <div class="location-tools">
                 <select id="celestial-body" aria-label="Celestial Body" title="Celestial Body" disabled><option value="earth">Earth</option><option value="mars">Mars</option><option value="moon">Moon</option></select>
             <form id="location-search" role="search">
-                <label for="location-query" class="sr">Coordinates or Address</label>
+                <label for="location-query" class="sr">Location</label>
                 <div class="search-row"><input id="location-query" type="search" placeholder="Location" title="Latitude, longitude (e.g. 40.7, -74) or an address" autocomplete="off" aria-controls="search-results"><button type="submit" class="icon-button" aria-label="Search" title="Search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button></div>
                 <ul id="search-results" aria-label="Search results" hidden></ul>
                 <div id="search-status" role="status"></div>
@@ -162,6 +162,7 @@
                 <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
+                <label class="toggle">Coordinate Grid <input id="graticule" type="checkbox" role="switch"></label>
                 <label class="toggle">Sphere <input id="projection" type="checkbox" role="switch" aria-label="Sphere View" checked></label>
                 <details class="render-details">
                     <summary>Rendering Details</summary>
@@ -188,7 +189,7 @@
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>
                     <p><span class="key-command"><kbd>WASD / ↑↓←→</kbd> Pan</span> · <span class="key-command"><kbd>+ −</kbd> Zoom</span><br>
-                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
+                        <span class="key-command"><kbd>E</kbd> Edges</span> · <span class="key-command"><kbd>H</kbd> Highlight</span> · <span class="key-command"><kbd>U</kbd> Underwater</span> · <span class="key-command"><kbd>M</kbd> Map</span> · <span class="key-command"><kbd>C</kbd> Coordinate Grid</span> · <span class="key-command"><kbd>Shift + M</kbd> Full / Auto Range</span> · <span class="key-command"><kbd>O</kbd> Sphere</span> · <span class="key-command"><kbd>F</kbd> Fullscreen</span><br>
                         <span class="key-command"><kbd>G</kbd> Google Maps</span> · <span class="key-command"><kbd>R</kbd> Reset Settings</span><br>
                         <span class="key-command"><kbd>0</kbd> Min Sea Level</span> · <span class="key-command"><kbd>Shift + 0</kbd> Max Sea Level</span><br>
                         <span class="key-command"><kbd>, .</kbd> Highlight Elevation</span> · <span class="key-command"><kbd>Shift + , .</kbd> Half-Width</span><br>

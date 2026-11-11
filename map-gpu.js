@@ -129,7 +129,7 @@ export async function createMapPass(device){
   for(const {tile,entry} of scene.tiles){
    const data=entry.geometry.segments;if(!data.length)continue;
    let item=resident.get(entry);if(!item){const buffer=device.createBuffer({size:data.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(buffer,0,data);item={buffer,count:data.length/8};resident.set(entry,item);stats.geometryUploads++;}
-   const key=`${tile.z}/${tile.x}/${tile.y}`;used.add(key);let slot=slots.get(key);
+   const key=tile.key??`${tile.z}/${tile.x}/${tile.y}`;used.add(key);let slot=slots.get(key);
    if(!slot){slot={uniform:device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST})};slots.set(key,slot);}
    if(slot.owner!==item){slot.owner=item;slot.group=device.createBindGroup({layout:strokeLayout,entries:[{binding:0,resource:{buffer:slot.uniform}},{binding:1,resource:{buffer:item.buffer}}]});}
    const n=2**tile.z;let originX=view.x*n-tile.x;if(camera)originX-=Math.round((originX-.5)/n)*n;device.queue.writeBuffer(slot.uniform,0,new Float32Array([w,h,dpr,camera?1:0,camera?camera.radius*dpr:256*2**view.zoom*dpr,zoom,Math.PI*(1-2*view.y),1/n,originX,view.y*n-tile.y,sinLat,cosLat]));pass.setBindGroup(0,slot.group);pass.draw(6,item.count);
