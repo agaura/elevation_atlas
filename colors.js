@@ -377,6 +377,24 @@ fn colorMapStyx(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emph
   return emphasizeColor(lab, emphasisWeight, hdrScale, emphasisEnabled);
 }
 
+// Fixed Rainbow: starting hue 0 degrees, coverage one full turn.
+fn colorMapRainbow(t0: f32, selected: f32, emphasisWeight: f32, hdrScale: f32, emphasisEnabled: bool) -> vec3<f32> {
+  let t = -t0;
+  let angle = t * 6.2831853;
+  let lab = vec3<f32>(0.9, 0.205 * cos(angle), 0.205 * sin(angle));
+  let potentialMax = oklabToLinearP3(lab);
+  let neutral = oklabToLinearP3(vec3<f32>(lab.x, 0.0, 0.0));
+  let boundary = firstBoundaryHit(neutral, potentialMax, vec3<f32>(0.0), vec3<f32>(4.0));
+  let peak = max(boundary.x, max(boundary.y, boundary.z));
+  let saturatedBoundaryP3 = hdrScale * boundary / max(peak, 0.000001);
+  var saturatedP3 = mix(neutral, saturatedBoundaryP3, 0.999);
+  let saturatedY = dot(saturatedP3, vec3<f32>(0.22897456, 0.69173852, 0.07928691));
+  saturatedP3 *= clamp(2.0 / saturatedY, 1.25, 1.75);
+  let saturated = select(lab, linearP3ToOKLab(saturatedP3), emphasisEnabled);
+  // The caller supplies the highlight falloff, width, and toggle transition.
+  return mix(lab, saturated, emphasisWeight);
+}
+
 `;
 
 export const COLOR_MAPS = [
@@ -414,6 +432,11 @@ export const COLOR_MAPS = [
     "id": 10,
     "label": "Styx",
     "shader": "colorMapStyx"
+  },
+  {
+    "id": 11,
+    "label": "Rainbow",
+    "shader": "colorMapRainbow"
   }
 ];
 
