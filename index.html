@@ -162,16 +162,16 @@
                                 max="24000" step="any" value="2481.25"></div>
                     </div>
                 </fieldset></div></div>
-                <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
+                <label class="toggle edge-toggle"><span>Edge Highlighting<sup class="compatibility-marker" data-hdr-marker hidden aria-hidden="true">*</sup></span> <input id="edges" type="checkbox" role="switch"
                         checked></label>
                 </div>
                 </details></div></div>
                 <details class="sidebar-section" open>
                     <summary>Map View</summary>
                     <div class="sidebar-section-content">
-                <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
-                <label class="toggle">Contours <input id="contours" type="checkbox" role="switch"></label>
-                <label class="toggle">Coordinate Grid <input id="graticule" type="checkbox" role="switch"></label>
+                <label class="toggle map-toggle"><span>Map Labels<sup class="compatibility-marker" data-hdr-marker hidden aria-hidden="true">*</sup></span> <input id="map-mode" type="checkbox" role="switch"></label>
+                <label class="toggle"><span>Contours<sup class="compatibility-marker" data-hdr-marker hidden aria-hidden="true">*</sup></span> <input id="contours" type="checkbox" role="switch"></label>
+                <label class="toggle"><span>Coordinate Grid<sup class="compatibility-marker" data-hdr-marker hidden aria-hidden="true">*</sup></span> <input id="graticule" type="checkbox" role="switch"></label>
                 <label class="toggle">Sphere <input id="projection" type="checkbox" role="switch" aria-label="Sphere View" checked></label>
                 </div>
                 </details>
@@ -198,6 +198,10 @@
                 </div>
                 </details>
             </section>
+            <div id="display-footnotes" class="display-footnotes" aria-label="Display compatibility" hidden>
+                <p id="hdr-footnote" hidden><span class="footnote-symbol">*</span> This display/browser does not report HDR support. Not all colors will appear as bright as intended and may be clipped to possibly a much different color.</p>
+                <p id="gamut-footnote" hidden><span class="footnote-symbol">†</span> This display/browser does not report wide-gamut (P3) support. Not all colors will appear as vibrant or as saturated as intended.</p>
+            </div>
             <footer>
                 <div class="keyboard-help" aria-label="Keyboard shortcuts">
                     <div class="eyebrow">KEYBOARD</div>

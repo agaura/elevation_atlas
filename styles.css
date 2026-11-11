@@ -383,3 +383,9 @@ body.imagery-mode .canvas-legend #legend{pointer-events:none}
 
 /* Enlarge the satellite artwork without changing its hit area. */
 .map-actions>.satellite-button .satellite-symbol,#fullscreen-satellite .satellite-symbol{width:24px;height:24px;flex-basis:24px;stroke-width:1.25}
+
+.display-footnotes{color:var(--muted);font:9px/1.45 monospace}
+.display-footnotes p{margin:3px 0;padding-left:12px;position:relative}
+.footnote-symbol{position:absolute;left:0;color:var(--fg)}
+.compatibility-marker{margin-left:3px;font:9px monospace;color:var(--muted);vertical-align:super}
+.display-footnotes[hidden],.display-footnotes p[hidden],.compatibility-marker[hidden]{display:none}

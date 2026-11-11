@@ -1,3 +1,4 @@
+import {setupDisplayCompatibility} from './display-compatibility.js';
 import {Imagery,IMAGERY_SOURCES} from './imagery.js';
 import {setCanvasText,MapLabelText} from './canvas-text.js';
 import {contourInterval,contourLegendLevels} from './contours.js';
@@ -27,6 +28,7 @@ import {coastStep} from './motion.js';
 import {createRenderer} from './gpu.js';
 import {sourceZoom,visibleTiles,wrap,minimumMapZoom,boundedMapY,maximumMapZoom} from './terrain.js';
 const $=id=>document.getElementById(id), canvas=$('map'),legend=$('legend');
+setupDisplayCompatibility();
 const view={x:.5,y:.5,zoom:2};
 try{const saved=location.hash.slice(1).split('/').map(Number);if(saved.length===3&&saved.every(Number.isFinite)){view.zoom=Math.max(0,Math.min(22,saved[0]));view.x=wrap(saved[1],1);view.y=boundedSphereY(saved[2]);}}catch{}
 let imagery=null,imageryMode=false;
@@ -539,7 +541,7 @@ async function downloadImage(){
   stopMomentum();stopNavigation();
   const framePromise=renderer.capture();requestRender();
   const frame=await framePromise;
-  const paletteName=$('palette').selectedOptions[0].textContent.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const paletteName=($('palette').selectedOptions[0].dataset.name||$('palette').selectedOptions[0].textContent).toLowerCase().replace(/[^a-z0-9]+/g,'-');
   const filename=`elevation-atlas-${body}-${paletteName}-${frame.width}x${frame.height}-hdr.avif`;
   worker=new Worker(new URL('./image-export.worker.js',import.meta.url),{type:'module'});
   const encoded=await new Promise((resolve,reject)=>{
