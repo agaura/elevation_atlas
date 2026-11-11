@@ -41,6 +41,9 @@
             </form>
             </div>
             <section class="color-controls">
+                <details class="sidebar-section" open>
+                    <summary>Terrain</summary>
+                    <div class="sidebar-section-content">
                 <div id="water-control" class="control-expander" data-open="true" aria-hidden="false"><div class="control-expander-inner">
                 <label class="toggle water-toggle">Underwater <input
                         id="water" type="checkbox" role="switch"></label>
@@ -161,11 +164,19 @@
                 </fieldset></div></div>
                 <label class="toggle edge-toggle">Edge Highlighting <input id="edges" type="checkbox" role="switch"
                         checked></label>
+                </div>
+                </details>
+                <details class="sidebar-section" open>
+                    <summary>Map View</summary>
+                    <div class="sidebar-section-content">
                 <label class="toggle map-toggle">Map Labels <input id="map-mode" type="checkbox" role="switch"></label>
                 <label class="toggle">Coordinate Grid <input id="graticule" type="checkbox" role="switch"></label>
                 <label class="toggle">Sphere <input id="projection" type="checkbox" role="switch" aria-label="Sphere View" checked></label>
+                </div>
+                </details>
                 <details class="render-details">
                     <summary>Rendering Details</summary>
+                    <div class="sidebar-section-content">
                     <span id="body-source" class="body-source" hidden></span>
                     <span id="projection-label">GLOBAL ELEVATION / SPHERE</span>
                 <dl>
@@ -183,6 +194,7 @@
                     <dd id="gebco-status">—</dd>
                 </dl>
                 <div class="map-help"><span id="scale">—</span></div>
+                </div>
                 </details>
             </section>
             <footer>

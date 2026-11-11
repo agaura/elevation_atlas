@@ -55,22 +55,22 @@ main{position:relative;grid-column:2;grid-row:2;display:block;padding:0;gap:0;ov
 #map:focus,#map:focus-visible{outline:none}#map,#legend,.legend-wrap,.ends{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 
 /* Minimal sidebar: full-row hit areas, quiet helpers, and brighter live values. */
-aside{--helper:#8390a0;--field-bg:#19232f;--field-hover:#223144;gap:10px;background:transparent}
+aside{--helper:#8390a0;--field-bg:#19232f;--field-hover:#223144;gap:4px;background:transparent}
 aside section{min-width:0}
 aside .caption{margin:0 0 5px;font:9px monospace;letter-spacing:.08em;color:var(--muted)}
 aside .caption span{color:var(--accent)}
 aside .search-row{min-height:30px;padding:0 6px;border:0;background:var(--field-bg)}
 aside #location-query{padding:7px 0;font:11px monospace}
 aside .search-row:focus-within{background:var(--field-hover);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 33.33%,transparent)}
-aside .toggle{width:100%;min-height:26px;padding:3px 0;margin:0;gap:10px;border:0;background:transparent;color:var(--fg);font-size:10px;cursor:pointer}
+aside .toggle{width:100%;min-height:22px;padding:1px 0;margin:0;gap:10px;border:0;background:transparent;color:var(--fg);font-size:10px;cursor:pointer}
 aside .toggle:hover{color:var(--accent)}
 aside .toggle:has(input:focus-visible){outline:1px solid var(--accent);outline-offset:2px}
 aside .toggle input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;flex:0 0 26px;width:26px;height:13px;border:1px solid #526174;border-radius:2px;background:#151c25;outline:0}
 aside .toggle input[type=checkbox]::before{content:"";position:absolute;top:2px;left:2px;width:7px;height:7px;border-radius:1px;background:#8996a7;transition:transform .15s,background .15s}
 aside .toggle input[type=checkbox]:checked{border-color:#779cbf;background:#2b4763}
 aside .toggle input[type=checkbox]:checked::before{transform:translateX(13px);background:#dbeeff}
-aside .slider-control{margin-top:2px}
-aside .control-heading{min-height:23px;gap:5px}
+aside .slider-control{margin-top:0}
+aside .control-heading{min-height:22px;gap:5px}
 aside .control-heading>label{font-size:10px;color:var(--fg)}
 aside .value-edit{height:22px;padding:0 3px;gap:3px;border:0;background:var(--field-bg);font:10px monospace;font-variant-numeric:tabular-nums}
 aside .value-edit input[type=number]{width:70px;height:22px;padding:1px 0;border:0;background:transparent;color:var(--fg);font:inherit}
@@ -82,9 +82,9 @@ aside .unit{font:9px monospace;color:var(--muted)}
 aside .steppers{grid-template-rows:10px 10px;width:15px;margin-left:7px;border:0}
 aside .steppers button{width:15px;height:10px;color:#aabbd0}
 aside .steppers button:hover{color:var(--accent);background:color-mix(in srgb,var(--accent) 7.06%,transparent)}
-aside .slider-row{min-height:20px;gap:7px}
+aside .slider-row{min-height:16px;gap:7px}
 aside .slider-row.has-lock{grid-template-columns:minmax(0,1fr) 22px}
-aside input[type=range]{height:20px;accent-color:var(--accent)}
+aside input[type=range]{height:16px;accent-color:var(--accent)}
 aside .icon-button{width:24px;height:24px;border:0;background:transparent;color:var(--muted)}
 aside .icon-button:hover{color:var(--fg);background:color-mix(in srgb,var(--accent) 4.31%,transparent)}
 aside .icon-button:focus-visible,aside .steppers button:focus-visible,aside select:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
@@ -109,10 +109,10 @@ aside #highlight-value{font:inherit;color:inherit;font-variant-numeric:tabular-n
 aside fieldset:disabled{opacity:1}
 aside fieldset:disabled input,aside fieldset:disabled button{cursor:default}
 aside .edge-toggle{margin-top:0}
-aside .render-details{margin-top:6px}
-aside .render-details summary{padding:5px 0;cursor:pointer;color:var(--muted);font:9px monospace}
-aside .render-details summary:hover{color:var(--fg)}
-aside .render-details summary:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
+aside .render-details{margin:0}
+aside :is(.render-details,.sidebar-section) summary{min-height:18px;padding:0;cursor:pointer;color:var(--muted);font:500 10px/18px monospace}
+aside :is(.render-details,.sidebar-section) summary:hover{color:var(--fg)}
+aside :is(.render-details,.sidebar-section) summary:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
 aside #projection-label{display:block;margin:4px 0 7px;color:var(--helper);font:8px/1.4 monospace}
 aside .render-details dl{gap:5px;font:9px/1.4 monospace}
 aside .render-details dd{color:var(--fg);font-variant-numeric:tabular-nums}
@@ -133,14 +133,14 @@ aside footer p{font-size:9px;line-height:1.5}
 .canvas-probe :is(#probe-unpin,#region-unpin){height:18px;min-width:36px;line-height:normal;padding:0;border:0;background:transparent;color:var(--accent);font:inherit;text-decoration:underline;text-underline-offset:3px;pointer-events:auto;cursor:pointer}
 .canvas-probe :is(#probe-unpin,#region-unpin):hover{color:var(--fg)}
 @media(pointer:coarse){
- aside .toggle{min-height:30px}
+ aside .toggle{min-height:24px}
  aside .icon-button,aside .palette-picker .icon-button{width:26px;height:26px}
  aside .slider-row.has-lock{grid-template-columns:minmax(0,1fr) 26px}
- aside .control-heading{min-height:26px}
- aside .value-edit,aside .value-edit input[type=number]{height:26px}
+ aside .control-heading{min-height:24px}
+ aside .value-edit,aside .value-edit input[type=number]{height:24px}
  aside .steppers{grid-template-rows:13px 13px;width:20px}
  aside .steppers button{width:20px;height:13px}
- aside .render-details summary{padding:8px 0}
+ aside :is(.render-details,.sidebar-section) summary{min-height:22px;line-height:22px}
 }
 @media(prefers-reduced-motion:reduce){aside .toggle input[type=checkbox]::before{transition:none}}
 
@@ -306,7 +306,7 @@ aside .sea-button[aria-pressed="true"]{color:var(--accent);background:color-mix(
 
 .distance-scale[hidden]{display:none}
 
-.location-tools{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;gap:5px;min-width:0;margin-inline:-4px;margin-bottom:-6px}
+.location-tools{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;gap:5px;min-width:0;margin-inline:-4px}
 .location-tools #celestial-body{height:26px;min-width:0;padding:3px 7px;background:var(--field-bg);font:10px monospace}
 .location-tools #location-search{min-width:0}
 
@@ -326,3 +326,12 @@ aside .sea-button[aria-pressed="true"]{color:var(--accent);background:color-mix(
 .canvas-legend .legend-hover[hidden]{display:none}
 .canvas-legend .legend-hover span{position:absolute;left:0;top:clamp(0px,calc((100 - var(--position))*1% - 8px),calc(100% - 17px));width:max-content;text-align:left}
 .canvas-legend #highlight-value{font:inherit}
+
+aside .sidebar-section{margin:0}
+aside .color-controls{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+aside .sidebar-section-content{padding-top:0}
+aside .sidebar-section[open]>summary{color:var(--muted)}
+
+.location-tools + .color-controls{margin-top:4px}
+
+@media(max-width:700px){aside{align-content:start;grid-auto-rows:max-content}}
