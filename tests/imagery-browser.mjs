@@ -27,6 +27,16 @@ try{
  assert.equal(await page.locator('aside').isVisible(),true);
  assert.equal(await page.locator('#map-label-text').evaluate(el=>getComputedStyle(el).visibility),'visible');
  await page.locator('#canvas-overlays').click();assert.equal(await page.locator('#legend').isVisible(),true);
+ const shortcuts=await page.evaluate(()=>{
+  const results=[];
+  for(const modifier of ['ctrlKey','metaKey'])for(const [key,value] of Object.entries({g:'0',a:'5',t:'1',o:'2',h:'4',p:'3',s:'10',r:'11'})){
+   const event=new KeyboardEvent('keydown',{key,[modifier]:true,bubbles:true,cancelable:true});window.dispatchEvent(event);
+   results.push({value,actual:document.querySelector('#palette').value,prevented:event.defaultPrevented});
+  }
+  const input=document.querySelector('#location-query');input.focus();input.dispatchEvent(new KeyboardEvent('keydown',{key:'a',ctrlKey:true,bubbles:true,cancelable:true}));
+  const typingPreserved=document.querySelector('#palette').value==='11';input.blur();return {results,typingPreserved};
+ });
+ assert.ok(shortcuts.typingPreserved);for(const result of shortcuts.results){assert.equal(result.actual,result.value);assert.equal(result.prevented,true);}
  assert.equal(imageryRequests,0);assert.equal(await page.locator('#satellite').getAttribute('aria-pressed'),'false');
  await page.locator('#satellite').click();await page.waitForFunction(()=>document.querySelector('#imagery-status').textContent==='');
  assert.equal(await page.locator('#terrain-section').getAttribute('data-open'),'false');

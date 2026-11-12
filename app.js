@@ -864,9 +864,19 @@ function toggleFullColorRange(){
  invalidateTerrain();controls();requestRender();
 }
 // View shortcuts share the controls' event paths, including animated edges
-// and water/exposure invalidation. Text/number entry and browser modifiers are excluded.
+// and water/exposure invalidation. Text/number entry is excluded; Cmd/Ctrl selects palettes.
 window.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||textFieldHasKeyboardFocus(event))return;
+ if(event.defaultPrevented||event.isComposing||event.altKey||textFieldHasKeyboardFocus(event))return;
+ if(event.ctrlKey||event.metaKey){
+  if(event.shiftKey)return;
+  const paletteId={g:0,a:5,t:1,o:2,h:4,p:3,s:10,r:11}[event.key.toLowerCase()];
+  if(paletteId!==undefined){
+   event.preventDefault();if(event.repeat)return;
+   $('palette').value=String(paletteId);
+   $('palette').dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  return;
+ }
  if(event.code==='KeyM'&&event.shiftKey){
   event.preventDefault();if(!event.repeat)toggleFullColorRange();return;
  }

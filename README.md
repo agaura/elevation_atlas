@@ -32,6 +32,7 @@ Shortcuts pause while typing in text or number inputs.
 | Keys | Action |
 | --- | --- |
 | WASD / arrows; + / − | Pan; zoom |
+| Cmd/Ctrl + G / A / T / O / H / P / S / R | Grayscale / Amber / Thermal / Arctic Ocean / Hawaii / Phantom / Styx / Rainbow |
 | E / H / U | Edge Highlighting / Highlight / Underwater |
 | M / C / G | Map Labels / Contours / Coordinate Grid |
 | O / T / F / X | Sphere / Satellite–Terrain / Fullscreen / Canvas overlays |
