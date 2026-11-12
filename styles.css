@@ -389,3 +389,17 @@ body.imagery-mode .canvas-legend #legend{pointer-events:none}
 .footnote-symbol{position:absolute;left:0;color:var(--fg)}
 .compatibility-marker{margin-left:3px;font:9px monospace;color:var(--muted);vertical-align:super}
 .display-footnotes[hidden],.display-footnotes p[hidden],.compatibility-marker[hidden]{display:none}
+
+.fullscreen-actions>#fullscreen-overlays{position:static;width:32px;height:32px;margin:0;padding:6px;border:0;pointer-events:auto;background:#101318d9;color:var(--fg)}
+:is(#canvas-overlays,#fullscreen-overlays) svg{width:20px;height:20px;stroke-width:1.5}
+:is(#canvas-overlays,#fullscreen-overlays) .overlays-visible-symbol,:is(#canvas-overlays,#fullscreen-overlays)[aria-pressed=true] .overlays-hidden-symbol{display:none}
+:is(#canvas-overlays,#fullscreen-overlays)[aria-pressed=true] .overlays-visible-symbol{display:block}
+.canvas-overlays-hidden :is(.canvas-legend,.canvas-readouts,#location-pin),
+.canvas-overlays-hidden :is(.canvas-legend,.canvas-readouts) *{visibility:hidden!important;pointer-events:none!important}
+/* X restores the fullscreen controls after all canvas UI is hidden. */
+.canvas-overlays-hidden .fullscreen-actions{visibility:hidden;pointer-events:none}
+.canvas-overlays-hidden .fullscreen-actions>*{pointer-events:none}
+
+.fullscreen-actions>#fullscreen-overlays:hover{background:#1c2632ed;color:var(--accent)}
+
+@media(max-width:380px){header h1{font-size:22px}.header-right .map-actions{--action-gap:3px}}

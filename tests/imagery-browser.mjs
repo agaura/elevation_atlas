@@ -21,6 +21,12 @@ try{
 
 
 
+ await page.locator('#canvas-overlays').click();
+ assert.equal(await page.locator('#legend').isVisible(),false);
+ assert.equal(await page.locator('#canvas-overlays').isVisible(),true);
+ assert.equal(await page.locator('aside').isVisible(),true);
+ assert.equal(await page.locator('#map-label-text').evaluate(el=>getComputedStyle(el).visibility),'visible');
+ await page.locator('#canvas-overlays').click();assert.equal(await page.locator('#legend').isVisible(),true);
  assert.equal(imageryRequests,0);assert.equal(await page.locator('#satellite').getAttribute('aria-pressed'),'false');
  await page.locator('#satellite').click();await page.waitForFunction(()=>document.querySelector('#imagery-status').textContent==='');
  assert.equal(await page.locator('#terrain-section').getAttribute('data-open'),'false');
@@ -35,6 +41,8 @@ try{
  const boxes=await Promise.all(['fullscreen-satellite','fullscreen-google-maps','fullscreen-download','fullscreen-exit'].map(id=>page.locator('#'+id).boundingBox()));
  for(let i=1;i<boxes.length;i++){assert.equal(boxes[i].y,boxes[0].y);assert.equal(boxes[i].width,32);assert.equal(boxes[i].x-boxes[i-1].x-boxes[i-1].width,8);}
 
+ await page.locator('#fullscreen-overlays').click();assert.equal(await page.locator('#fullscreen-exit').isVisible(),false);assert.equal(await page.locator('#fullscreen-overlays').isVisible(),false);
+ await page.keyboard.press('x');assert.equal(await page.locator('#fullscreen-satellite').isVisible(),true);assert.equal(await page.locator('#fullscreen-overlays').isVisible(),true);
  await page.locator('#fullscreen-satellite').click();assert.equal(await page.locator('#satellite').getAttribute('aria-pressed'),'false');assert.equal(await page.locator('#legend').isVisible(),true);assert.equal(await page.locator('#terrain-section').getAttribute('data-open'),'true');
  await page.keyboard.press('Escape');await page.setViewportSize({width:320,height:700});await page.waitForTimeout(200);
  const header=await page.locator('header').boundingBox(),button=await page.locator('#fullscreen').boundingBox();assert.ok(button.x+button.width<=320&&button.y+button.height<=header.y+header.height);

@@ -20,6 +20,7 @@ Visit http://localhost:8080. No build step or API keys are required. WebGPU requ
 - **Map View:** toggle labels, contours, the coordinate grid, and Sphere. Earth labels include roads, borders, and geographic features; Mars/Moon labels use official planetary names. Contours brighten terrain within the selected color range, with matching levels beside the color strip. The scale bar appears in Sphere view.
 - **Imagery:** the satellite/mountain button switches between photographic imagery and elevation colors. Imagery dates vary; these are not live feeds. Missing imagery stays dark. The Terrain section hides in imagery mode, while map overlays remain available.
 - **Region masks (Earth):** hold Command (Mac) or Control while hovering to isolate an administrative region, even with Map Labels off. Click while holding the modifier to pin it; Clear removes it. Auto Color Range follows the visible region.
+- **Canvas overlays:** the top-bar eye button (X) hides/shows the color legend, pin, scale, messages, and readouts without changing sidebar settings or map labels. In fullscreen it hides all canvas controls, including itself; press X to restore them.
 - **Toolbar:** open the Earth view in Google Maps, enter fullscreen, or download the rendered image as full-resolution HDR AVIF. Downloads include rendered map layers but exclude UI readouts. HDR playback depends on the viewer and display.
 
 Location links include the map center/zoom and selected body (`?body=mars` or `?body=moon`), **not sidebar settings**.
@@ -33,7 +34,7 @@ Shortcuts pause while typing in text or number inputs.
 | WASD / arrows; + / − | Pan; zoom |
 | E / H / U | Edge Highlighting / Highlight / Underwater |
 | M / C / G | Map Labels / Contours / Coordinate Grid |
-| O / T / F | Sphere / Satellite–Terrain / Fullscreen |
+| O / T / F / X | Sphere / Satellite–Terrain / Fullscreen / Canvas overlays |
 | , / . | Lower / raise highlight elevation; Shift adjusts half-width |
 | 0 / Shift + 0 | Set and lock min / max to sea level; repeat to restore |
 | Shift + M | Full elevation range / Auto Color Range |

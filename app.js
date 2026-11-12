@@ -561,7 +561,7 @@ async function downloadImage(){
 }
 for(const button of downloadButtons)button.addEventListener('click',downloadImage);
 const panel=$('map-panel');
-function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;$('fullscreen-satellite').hidden=!active;syncGoogleMapsVisibility();updateView();}
+function fullscreenState(){const active=document.fullscreenElement===panel||panel.classList.contains('is-expanded');$('fullscreen').setAttribute('aria-pressed',active);$('fullscreen').setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');$('fullscreen').title=active?'Exit fullscreen':'Enter fullscreen';document.body.classList.toggle('canvas-fullscreen',active);$('fullscreen-exit').hidden=!active;$('fullscreen-download').hidden=!active;$('fullscreen-satellite').hidden=!active;$('fullscreen-overlays').hidden=!active;syncGoogleMapsVisibility();updateView();}
 $('fullscreen').addEventListener('click',async()=>{
  if(document.fullscreenElement===panel||panel.classList.contains('is-expanded'))return;
  try{if(!panel.requestFullscreen)throw Error();await panel.requestFullscreen();}catch{panel.classList.add('is-expanded');}
@@ -876,6 +876,9 @@ window.addEventListener('keydown',event=>{
   else $(event.shiftKey?'max-sea':'min-sea').click();
   return;
  }
+ if(event.key.toLowerCase()==='x'){
+  event.preventDefault();if(!event.repeat)toggleCanvasOverlays();return;
+ }
  if(event.key.toLowerCase()==='t'){
   event.preventDefault();if(!event.repeat)$('satellite').click();return;
  }
@@ -959,3 +962,15 @@ canvas.addEventListener('pointerup',event=>{
 });
 canvas.addEventListener('pointercancel',()=>{regionClick=null;});
 $('region-unpin').addEventListener('click',()=>{regionMask.unpin();requestRender();});
+
+
+// Hide interface annotations without changing any rendered map layers or settings.
+function toggleCanvasOverlays(){
+ const hidden=panel.classList.toggle('canvas-overlays-hidden');
+ const label=hidden?'Show canvas overlays':'Hide canvas overlays';
+ for(const id of ['canvas-overlays','fullscreen-overlays']){const button=$(id);button.setAttribute('aria-pressed',String(hidden));button.setAttribute('aria-label',label);button.title=label;}
+ for(const overlay of panel.querySelectorAll('.canvas-legend,.canvas-readouts,#location-pin'))overlay.inert=hidden;
+ if(hidden){endHighlightPreview();readoutHovered=false;}
+ requestRender();
+}
+for(const id of ['canvas-overlays','fullscreen-overlays'])$(id).addEventListener('click',toggleCanvasOverlays);
